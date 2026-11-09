@@ -1,0 +1,30 @@
+# 환경 변수와 비밀값
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Backend (Gradle, Kotlin)
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+*.log
+
+# Frontend (Node, Vite)
+node_modules/
+dist/
+coverage/
+*.local
+
+# IDE, OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Claude Code 개인 설정
+.claude/settings.local.json
