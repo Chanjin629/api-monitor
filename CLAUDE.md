@@ -15,7 +15,7 @@
 | Backend | Kotlin (JVM 21), Spring Boot 4.1, Gradle (Kotlin DSL, `kotlin-spring`·`kotlin-jpa` 플러그인), Spring Security, Spring Security OAuth2 Client, jjwt, Spring Data JPA, Spring Validation, WebClient, kotlinx-coroutines, Spring Scheduler |
 | Frontend | React, TypeScript, Vite, React Router, TanStack Query, Recharts, Tailwind CSS |
 | DB / Cache | MariaDB, Flyway, Redis (17단계부터) |
-| 비동기 | Kafka (18단계부터, 필요성이 확인된 경우에만) |
+| 비동기 | Kafka (배포 후 18단계에서 Worker 분리 학습·포트폴리오 목적으로 도입) |
 | 관측성 | Actuator, Micrometer, Prometheus, Grafana, Grafana Alloy, Loki |
 | 테스트 | JUnit 5, MockK, Testcontainers, WireMock, k6 (부하 테스트) |
 | 배포 | Docker, Docker Compose, GitHub Actions, Caddy (HTTPS·리버스 프록시) |
