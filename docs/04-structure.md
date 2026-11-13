@@ -32,35 +32,48 @@ api-monitor/
 backend/src/main/kotlin/com/apimonitor/
 ├── ApiMonitorApplication.kt
 ├── auth/
-│   ├── api/                AuthController, 요청·응답 DTO
-│   ├── application/        토큰 발급·재발급·로그아웃, Refresh Token 쿠키(CookieUtil)
+│   ├── controller/         AuthController
+│   ├── dto/                요청·응답 DTO
+│   ├── service/            토큰 발급·재발급·로그아웃, Refresh Token 쿠키(CookieUtil)
 │   ├── oauth/              GitHub 로그인 성공 처리, 회원 연결
-│   └── domain/             RefreshToken 엔티티, 저장소
+│   ├── domain/             RefreshToken 엔티티
+│   └── repository/         RefreshTokenRepository
 ├── member/
-│   ├── api/                내 정보 조회, 탈퇴
-│   ├── application/        회원 생성·조회
-│   └── domain/             Member 엔티티, 저장소
+│   ├── controller/         내 정보 조회, 탈퇴
+│   ├── dto/
+│   ├── service/            회원 생성·조회
+│   ├── domain/             Member 엔티티, Role enum
+│   └── repository/
 ├── monitor/
-│   ├── api/                MonitorController, DTO
-│   ├── application/        등록·수정·삭제·정지·재개, 소유자 검증
-│   └── domain/             Monitor, MonitorState 엔티티, 저장소
+│   ├── controller/         MonitorController
+│   ├── dto/
+│   ├── service/            등록·수정·삭제·정지·재개, 소유자 검증
+│   ├── domain/             Monitor, MonitorState 엔티티, MonitorStatus enum, 상태 전이 규칙
+│   └── repository/
 ├── check/
-│   ├── dispatch/           CheckDispatcher, 검사 대상 선점
-│   ├── execution/          CheckExecutor 인터페이스, WebClient 구현체, CheckCommand
-│   ├── result/             CheckResult, CheckResultProcessor, 다음 검사 시각 계산
-│   └── retention/          파티션 관리, 시간별 집계
+│   ├── scheduler/          CheckDispatcher(검사 대상 선점), 파티션 관리, 시간별 집계 작업
+│   ├── executor/           CheckExecutor 인터페이스, WebClient 구현체
+│   ├── service/            CheckResultProcessor, 다음 검사 시각 계산
+│   ├── dto/                CheckCommand, CheckResult
+│   └── repository/         check_results, monitor_hourly_stats 저장 (JdbcTemplate)
 ├── incident/
-│   ├── api/                장애 이력 조회
-│   ├── application/        장애 판정, 시작·복구 처리
-│   └── domain/             Incident 엔티티, 저장소
+│   ├── controller/         장애 이력 조회
+│   ├── dto/
+│   ├── service/            장애 판정, 시작·복구 처리
+│   ├── domain/             Incident 엔티티, 복구 처리 규칙
+│   └── repository/
 ├── notification/
-│   ├── api/                알림 채널 관리, 테스트 발송
-│   ├── application/        알림 예약, 발송기, 재시도
+│   ├── controller/         알림 채널 관리, 테스트 발송
+│   ├── dto/
+│   ├── service/            알림 예약, 재시도 계산
+│   ├── scheduler/          발송기 (5초 주기)
 │   ├── discord/            Discord 메시지 변환과 전송
-│   └── domain/             NotificationChannel, NotificationDelivery
+│   ├── domain/             NotificationChannel, NotificationDelivery
+│   └── repository/
 ├── dashboard/
-│   ├── api/                요약, 통계 API
-│   └── application/        조회 전용 쿼리
+│   ├── controller/         요약, 통계 API
+│   ├── dto/
+│   └── service/            조회 전용 쿼리
 └── global/
     ├── config/             Jackson, WebClient, 스케줄러 설정
     ├── security/           SecurityConfig, JwtTokenProvider, JwtTokenFilter, 401·403 핸들러
@@ -83,16 +96,20 @@ backend/src/main/kotlin/com/apimonitor/
 
 | 하위 폴더 | 맡는 역할 |
 | --- | --- |
-| `api` | HTTP 요청과 응답 |
-| `application` | 업무 흐름과 트랜잭션 |
-| `domain` | 엔티티와 DB 접근 |
+| `controller` | HTTP 요청을 받고 응답을 돌려줌 |
+| `dto` | 요청·응답과 계층 사이에 주고받는 데이터 |
+| `service` | 업무 흐름과 트랜잭션 |
+| `domain` | 엔티티, 상태 enum, 엔티티가 지키는 규칙 |
+| `repository` | DB 조회와 저장 |
+| `scheduler` | 주기적으로 실행되는 작업 |
+| 그 외 (`oauth`, `executor`, `discord`) | 외부 서비스 연결이나 검사 실행처럼 성격이 다른 코드 |
 
 왜 이렇게 했는가
 
-- **기능 단위로 나눈다.** 수정할 때 한 기능의 파일이 한곳에 모여 있어야 찾기 쉽고, 나중에 분리하기도 쉽다.
+- **기능 단위로 나누고, 그 안을 계층으로 나눈다.** 국내 Spring 프로젝트에서 가장 흔한 방식이고 SmartFridge에서 써 본 구조라 설명하기 쉽다. 수정할 때 한 기능의 파일이 한곳에 모여 있어 찾기 쉽다.
+- **필요한 폴더만 둔다.** Controller가 없는 `check`는 `scheduler`와 `executor`를 두고, 조회만 하는 `dashboard`에는 `domain`과 `repository`를 두지 않는다.
 - **SSRF 코드는 `global/ssrf`에 둔다.** `monitor`의 등록 검증과 `check`의 연결 시점 검증이 같은 규칙을 공유해야 한다. 한쪽만 고쳐지는 사고를 막는다.
 - **의존 방향을 지킨다.** `check`는 `monitor`의 저장소를 직접 호출하지 않고 `CheckCommand`만 받는다. 디스패처의 조회도 필요한 컬럼만 값 객체로 읽는다.
-- **`dashboard`에는 도메인이 없다.** 여러 테이블을 읽기만 하기 때문이다.
 
 테스트는 같은 패키지 구조로 `src/test/kotlin`에 둔다. Flyway 마이그레이션은 `src/main/resources/db/migration`에 둔다.
 

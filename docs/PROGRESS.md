@@ -53,6 +53,7 @@
 - 2026-11-09: Refresh Token 쿠키는 Synco의 `CookieUtil` 구조로 구현한다. 쿠키 처리를 한곳에 모으고 환경별 값을 설정으로 분리할 수 있기 때문이다. 쿠키 경로는 `/api/v1/auth`로 제한한다.
 - 2026-11-09: 설계 결정 D1, D2, D4~D9를 추천안으로 확정했다. Access Token은 메모리 보관, 수명 15분, Refresh Token 14일, 알림은 Discord만, 재알림 없음, 원본 14일 보관, 판정 중 30초 재검사, Redirect는 따라가지 않는다. 이유는 `docs/01-requirements.md`에 있다.
 - 2026-11-09: Kafka(18단계)는 3주 일정에서 제외하고 배포 후에 진행한다. 목표 규모에서는 없어도 처리할 수 있으므로, 검사 작업을 Worker로 분리하는 학습·포트폴리오 목적으로 도입한다.
+- 2026-11-13: Backend 패키지는 기능 단위 아래에 `controller`, `dto`, `service`, `domain`, `repository`를 두는 구조로 바꿨다. 국내 실무에서 가장 흔하고 SmartFridge에서 써 본 방식이라 설명하기 쉽기 때문이다.
 
 ## 완료 내역
 
