@@ -64,6 +64,9 @@
 | HTTP | code | 상황 |
 | --- | --- | --- |
 | 400 | `VALIDATION_FAILED` | 입력값 형식 오류 |
+| 400 | `INVALID_REQUEST_BODY` | JSON 형식이 잘못되어 요청 본문을 읽을 수 없음 |
+| 404 | `RESOURCE_NOT_FOUND` | 존재하지 않는 주소 |
+| 405 | `METHOD_NOT_ALLOWED` | 지원하지 않는 HTTP 메서드 |
 | 401 | `AUTH_REQUIRED` | 토큰 없음 |
 | 401 | `AUTH_TOKEN_EXPIRED` | Access Token 만료. 프론트엔드가 재발급 시도 |
 | 401 | `AUTH_TOKEN_INVALID` | 위조되었거나 잘못된 토큰 |

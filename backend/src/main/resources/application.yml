@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: api-monitor
+  profiles:
+    # 프로필을 지정하지 않고 실행하면 로컬 개발 설정을 쓴다.
+    default: local
+  jpa:
+    # 화면 렌더링 중에 DB 연결을 붙잡고 있지 않도록 끈다.
+    open-in-view: false
+    hibernate:
+      # 테이블은 Flyway가 만들고, JPA는 엔티티와 테이블이 맞는지 검사만 한다.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    locations: classpath:db/migration
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

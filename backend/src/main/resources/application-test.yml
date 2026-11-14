@@ -1,0 +1,4 @@
+# 테스트 설정. DB 연결 정보는 Testcontainers가 주입한다.
+logging:
+  level:
+    org.flywaydb: warn

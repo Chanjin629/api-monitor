@@ -1,0 +1,6 @@
+# 로컬 개발 설정. DB는 infra/docker-compose.dev.yml로 실행한다.
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:${DB_PORT:3307}/${DB_NAME:api_monitor}
+    username: ${DB_USERNAME:api_monitor}
+    password: ${DB_PASSWORD:api_monitor_local}
