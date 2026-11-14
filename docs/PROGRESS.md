@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 8 (GitHub Actions CI)
+현재 단계: 9 (회원 인증)
 
 ## 로드맵
 
@@ -16,7 +16,7 @@
 ### 기반
 - [x] 6. 개발용 인프라(`infra/docker-compose.dev.yml`, MariaDB) + Flyway와 첫 스키마 + Backend 기본 구조 (공통 응답, 예외 처리, 설정 분리)
 - [x] 7. Frontend 기본 구조 (라우팅, API 클라이언트, 레이아웃)
-- [ ] 8. GitHub Actions CI (Backend 빌드·테스트, Frontend 빌드·린트)
+- [x] 8. GitHub Actions CI (Backend 빌드·테스트, Frontend 빌드·린트)
 
 ### 핵심 기능
 - [ ] 9. 회원 인증 (GitHub OAuth 로그인, 로그아웃, JWT, 데모 로그인)
@@ -78,3 +78,9 @@
 - 요약: Vite로 React·TypeScript 프로젝트를 만들고 Tailwind CSS, React Router, TanStack Query를 설정했다. 화면 8개와 404 화면의 경로, 공통 레이아웃, Access Token을 메모리에 두고 만료 시 한 번 재발급하는 API 클라이언트, Backend로 요청을 넘기는 Vite 프록시를 구현했다.
 - 주요 변경 파일: `frontend/vite.config.ts`, `frontend/src/main.tsx`, `frontend/src/app/**`, `frontend/src/pages/**`, `frontend/src/shared/**`
 - 테스트 결과: `npm run lint`, `npm run build` 통과. 개발 서버에서 화면 이동, 404 화면, 프록시를 거친 Backend 응답 확인. Frontend 테스트 도구는 아직 없다.
+
+### 8단계: GitHub Actions CI (2026-11-14)
+
+- 요약: `main`에 푸시하거나 수동으로 실행하면 Backend 빌드·테스트(Testcontainers 포함)와 Frontend 린트·빌드를 동시에 실행하는 Workflow를 추가했다. 실패하면 테스트 리포트를 7일간 보관하고, README에 CI 배지를 달았다.
+- 주요 변경 파일: `.github/workflows/ci.yml`, `README.md`
+- 테스트 결과: 첫 실행([#43582120289](https://github.com/Chanjin629/api-monitor/actions/runs/43582120289)) 성공. Backend 약 2분, Frontend 약 20초. 린트 경고 0건.
