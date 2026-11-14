@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 7 (Frontend 기본 구조)
+현재 단계: 8 (GitHub Actions CI)
 
 ## 로드맵
 
@@ -15,7 +15,7 @@
 
 ### 기반
 - [x] 6. 개발용 인프라(`infra/docker-compose.dev.yml`, MariaDB) + Flyway와 첫 스키마 + Backend 기본 구조 (공통 응답, 예외 처리, 설정 분리)
-- [ ] 7. Frontend 기본 구조 (라우팅, API 클라이언트, 레이아웃)
+- [x] 7. Frontend 기본 구조 (라우팅, API 클라이언트, 레이아웃)
 - [ ] 8. GitHub Actions CI (Backend 빌드·테스트, Frontend 빌드·린트)
 
 ### 핵심 기능
@@ -72,3 +72,9 @@
 - 요약: Spring Boot 4.1.2 프로젝트와 패키지 구조를 만들고, 개발용 MariaDB, 환경별 설정, Flyway 첫 스키마(테이블 9개, 파티션, 생성 컬럼), 공통 응답·예외 처리, Swagger를 구현했다.
 - 주요 변경 파일: `infra/docker-compose.dev.yml`, `.env.example`, `backend/build.gradle.kts`, `backend/src/main/resources/application*.yml`, `backend/src/main/resources/db/migration/V1__init_schema.sql`, `backend/src/main/kotlin/com/apimonitor/global/**`, `README.md`
 - 테스트 결과: `./gradlew build` 성공, 테스트 16개 통과(스키마 5, 예외 처리 8, Swagger 2, 컨텍스트 1). 로컬 실행에서 Flyway V1 적용, Swagger 접속, 404 공통 응답 확인.
+
+### 7단계: Frontend 기본 구조 (2026-11-14)
+
+- 요약: Vite로 React·TypeScript 프로젝트를 만들고 Tailwind CSS, React Router, TanStack Query를 설정했다. 화면 8개와 404 화면의 경로, 공통 레이아웃, Access Token을 메모리에 두고 만료 시 한 번 재발급하는 API 클라이언트, Backend로 요청을 넘기는 Vite 프록시를 구현했다.
+- 주요 변경 파일: `frontend/vite.config.ts`, `frontend/src/main.tsx`, `frontend/src/app/**`, `frontend/src/pages/**`, `frontend/src/shared/**`
+- 테스트 결과: `npm run lint`, `npm run build` 통과. 개발 서버에서 화면 이동, 404 화면, 프록시를 거친 Backend 응답 확인. Frontend 테스트 도구는 아직 없다.

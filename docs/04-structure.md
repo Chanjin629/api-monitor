@@ -129,7 +129,8 @@ frontend/src/
 │   ├── MonitorDetailPage.tsx  그래프, 최근 검사, 장애 이력
 │   ├── MonitorFormPage.tsx    등록, 수정
 │   ├── IncidentsPage.tsx   전체 장애 이력
-│   └── SettingsPage.tsx    알림 채널, 계정 관리
+│   ├── SettingsPage.tsx    알림 채널, 계정 관리
+│   └── NotFoundPage.tsx    없는 주소 안내
 ├── features/
 │   ├── auth/               로그인 상태, 토큰 재발급 API
 │   ├── monitors/           모니터 API, 목록, 폼 컴포넌트
