@@ -1,5 +1,7 @@
 # API Monitor
 
+[![CI](https://github.com/Chanjin629/api-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/Chanjin629/api-monitor/actions/workflows/ci.yml)
+
 개발자가 자신의 API URL을 등록하면 주기적으로 호출해 상태와 응답 시간을 기록하고, 장애와 복구를 감지해 Discord로 알려 주는 서비스입니다.
 
 > 현재 개발 중입니다. 진행 상황은 [docs/PROGRESS.md](docs/PROGRESS.md)에 있습니다.

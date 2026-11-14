@@ -1,0 +1,70 @@
+# main에 푸시할 때마다 Backend와 Frontend를 깨끗한 환경에서 빌드하고 검사한다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # Actions 화면에서 수동으로 다시 실행할 수 있다.
+  workflow_dispatch:
+
+# 같은 브랜치에 연속으로 푸시하면 이전 실행을 취소하고 마지막 커밋만 검사한다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI는 저장소를 읽기만 한다.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # Gradle과 라이브러리를 캐시해 두 번째 실행부터 빨라진다.
+      - uses: gradle/actions/setup-gradle@v6
+
+      # 컴파일과 테스트. 통합 테스트는 Testcontainers가 Runner의 Docker로 MariaDB를 띄운다.
+      - run: ./gradlew build --console=plain
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-report
+          path: backend/build/reports/tests/test
+          retention-days: 7
+
+  frontend:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # package-lock.json에 적힌 버전 그대로 설치한다.
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run build
