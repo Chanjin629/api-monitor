@@ -17,7 +17,7 @@
 | DB / Cache | MariaDB, Flyway, Redis (17단계부터) |
 | 비동기 | Kafka (배포 후 18단계에서 Worker 분리 학습·포트폴리오 목적으로 도입) |
 | 관측성 | Actuator, Micrometer, Prometheus, Grafana, Grafana Alloy, Loki |
-| 테스트 | JUnit 5, MockK, Testcontainers, WireMock, k6 (부하 테스트) |
+| 테스트 | JUnit 5, MockK, Testcontainers, WireMock, Vitest (Frontend), k6 (부하 테스트) |
 | 배포 | Docker, Docker Compose, GitHub Actions, Caddy (HTTPS·리버스 프록시) |
 | 문서 | springdoc-openapi (Swagger UI) |
 
@@ -48,6 +48,7 @@ cd backend && ./gradlew bootRun
 # Frontend
 cd frontend && npm run dev
 cd frontend && npm run build && npm run lint
+cd frontend && npm run test
 ```
 
 Testcontainers 테스트는 Docker가 실행 중이어야 한다.

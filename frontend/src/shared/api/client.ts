@@ -4,8 +4,10 @@ import type { ApiErrorBody, ApiSuccessBody } from './types'
 
 const API_BASE = '/api/v1'
 const REFRESH_PATH = '/auth/refresh'
+/** 다른 탭이 토큰을 교체한 직후라면 쿠키가 바뀔 시간을 잠깐 준 뒤 다시 시도한다. */
+const REFRESH_RETRY_DELAY_MS = 300
 
-/** Refresh Token까지 만료되어 다시 로그인해야 할 때 실행할 동작. 9단계에서 랜딩 이동을 연결한다. */
+/** 재발급까지 실패해 다시 로그인해야 할 때 실행할 동작. main.tsx에서 랜딩 이동을 연결한다. */
 let onSessionExpired: () => void = () => {}
 
 export function setSessionExpiredHandler(handler: () => void) {
@@ -14,32 +16,44 @@ export function setSessionExpiredHandler(handler: () => void) {
 
 /**
  * API를 호출하고 성공 응답의 data를 돌려준다. 실패하면 ApiError를 던진다.
- * Access Token이 만료되면(AUTH_TOKEN_EXPIRED) 한 번 재발급한 뒤 같은 요청을 다시 보낸다.
+ * Access Token이 만료되면(AUTH_TOKEN_EXPIRED) 재발급한 뒤 같은 요청을 한 번 다시 보낸다.
  */
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await send(path, init)
 
   if (response.status === 401 && path !== REFRESH_PATH) {
-    const error = await toApiError(response.clone())
-    if (error.code === 'AUTH_TOKEN_EXPIRED' && (await refreshAccessToken())) {
-      return parse<T>(await send(path, init))
+    const error = await toApiError(response)
+    if (error.code === 'AUTH_TOKEN_EXPIRED') {
+      if (await refreshAccessToken()) {
+        return parse<T>(await send(path, init))
+      }
+      onSessionExpired()
     }
+    throw error
   }
 
   return parse<T>(response)
 }
 
 /**
- * Refresh Token 쿠키로 Access Token을 다시 받는다.
- * 여러 요청이 동시에 만료되어도 재발급 요청은 한 번만 보내도록 진행 중인 요청을 공유한다.
+ * Refresh Token 쿠키로 Access Token을 다시 받는다. 성공하면 true.
+ * 여러 요청이 동시에 만료되어도 재발급 요청은 하나만 보내도록 진행 중인 요청을 공유한다.
  */
 let refreshing: Promise<boolean> | null = null
 
 export function refreshAccessToken(): Promise<boolean> {
-  refreshing ??= requestNewToken().finally(() => {
+  refreshing ??= refreshWithRetry().finally(() => {
     refreshing = null
   })
   return refreshing
+}
+
+async function refreshWithRetry(): Promise<boolean> {
+  if (await requestNewToken()) return true
+  // 다른 탭이 같은 토큰으로 먼저 재발급했다면 서버는 이 요청을 거절하지만,
+  // 브라우저 쿠키는 이미 새 토큰으로 바뀌어 있으므로 한 번 더 시도한다.
+  await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS))
+  return requestNewToken()
 }
 
 async function requestNewToken(): Promise<boolean> {
@@ -49,7 +63,6 @@ async function requestNewToken(): Promise<boolean> {
     return true
   } catch {
     tokenStore.clear()
-    onSessionExpired()
     return false
   }
 }

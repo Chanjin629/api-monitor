@@ -72,6 +72,7 @@
 | 401 | `AUTH_TOKEN_INVALID` | 위조되었거나 잘못된 토큰 |
 | 401 | `AUTH_REFRESH_INVALID` | Refresh Token이 없거나 만료, 무효화됨. 재로그인 필요 |
 | 403 | `DEMO_READ_ONLY` | 데모 계정의 변경 요청 |
+| 403 | `ACCESS_DENIED` | 그 외 권한이 없는 요청 |
 | 404 | `MONITOR_NOT_FOUND` | 없는 모니터이거나 다른 사용자의 모니터 |
 | 404 | `CHANNEL_NOT_FOUND` | 없는 채널이거나 다른 사용자의 채널 |
 | 404 | `INCIDENT_NOT_FOUND` | 없는 장애이거나 다른 사용자의 장애 |

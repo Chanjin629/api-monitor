@@ -8,6 +8,7 @@ import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
@@ -20,7 +21,9 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
+/** 예외 처리기만 검증하므로 보안 필터는 끈다. 보안 응답은 AuthApiTest에서 검증한다. */
 @WebMvcTest(controllers = [GlobalExceptionHandlerTest.ErrorTestController::class])
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandlerTest.ErrorTestController::class)
 class GlobalExceptionHandlerTest(
     @Autowired private val mockMvc: MockMvc,

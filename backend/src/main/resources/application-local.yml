@@ -4,3 +4,11 @@ spring:
     url: jdbc:mariadb://localhost:${DB_PORT:3307}/${DB_NAME:api_monitor}
     username: ${DB_USERNAME:api_monitor}
     password: ${DB_PASSWORD:api_monitor_local}
+
+auth:
+  jwt:
+    # 로컬 개발 전용 키. 운영에서는 JWT_SECRET 환경 변수를 쓴다.
+    secret: ${JWT_SECRET:xe5QWxyvyFVnRBeiXDawT6FyLGB7OLNwB91w/KCCidY=}
+  cookie:
+    # 로컬은 HTTP라서 Secure 쿠키를 쓰면 브라우저가 저장하지 않는다.
+    secure: false

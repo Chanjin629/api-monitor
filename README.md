@@ -13,7 +13,8 @@
 | Backend | Kotlin, Spring Boot 4.1, Spring Data JPA, Flyway |
 | Frontend | React, TypeScript, Vite |
 | DB | MariaDB 11.8 |
-| 테스트 | JUnit 5, MockK, Testcontainers |
+| 인증 | GitHub OAuth, JWT (Access 15분), Refresh Token 교체·재사용 감지 |
+| 테스트 | JUnit 5, MockK, Testcontainers, Vitest |
 | 배포 | Docker Compose, GitHub Actions, Caddy |
 
 ## 설계 문서
@@ -29,23 +30,32 @@
 
 ## 로컬 실행
 
-필요한 것: JDK 21, Docker Desktop
+필요한 것: JDK 21, Node.js 24, Docker Desktop, [GitHub OAuth App](https://github.com/settings/developers)
+
+1. GitHub OAuth App을 만들고 환경 변수 `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`에 저장합니다.
+   - Homepage URL: `http://localhost:5173`
+   - Redirect URI: `http://localhost:5173/login/oauth2/code/github`
 
 ```bash
-# 1. 개발용 MariaDB 실행 (127.0.0.1:3307)
+# 2. 개발용 MariaDB 실행 (127.0.0.1:3307)
 docker compose -f infra/docker-compose.dev.yml up -d
 
-# 2. 서버 실행 (local 프로필, 테이블은 Flyway가 자동 생성)
+# 3. 서버 실행 (local 프로필, 테이블은 Flyway가 자동 생성)
 cd backend && ./gradlew bootRun
+
+# 4. 화면 실행 (/api, /oauth2 요청은 Vite 프록시가 서버로 전달)
+cd frontend && npm install && npm run dev
 ```
 
-- API 문서: http://localhost:8080/swagger-ui.html
-- DB 접속 정보와 포트를 바꾸려면 [.env.example](.env.example)의 환경 변수를 지정합니다.
+- 화면: http://localhost:5173 (GitHub 로그인 또는 데모 체험)
+- API 문서: http://localhost:8080/swagger-ui.html (데모 로그인으로 받은 accessToken을 Authorize에 입력)
+- 환경 변수 목록은 [.env.example](.env.example)에 있습니다.
 
 ## 테스트
 
 ```bash
 cd backend && ./gradlew test
+cd frontend && npm test
 ```
 
-통합 테스트는 Testcontainers로 MariaDB 컨테이너를 띄우므로 Docker가 실행 중이어야 합니다.
+Backend 통합 테스트는 Testcontainers로 MariaDB 컨테이너를 띄우므로 Docker가 실행 중이어야 합니다.

@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 9 (회원 인증)
+현재 단계: 10 (모니터 등록 및 관리 + SSRF 방어)
 
 ## 로드맵
 
@@ -19,7 +19,7 @@
 - [x] 8. GitHub Actions CI (Backend 빌드·테스트, Frontend 빌드·린트)
 
 ### 핵심 기능
-- [ ] 9. 회원 인증 (GitHub OAuth 로그인, 로그아웃, JWT, 데모 로그인)
+- [x] 9. 회원 인증 (GitHub OAuth 로그인, 로그아웃, JWT, 데모 로그인)
 - [ ] 10. 모니터 등록 및 관리 + URL 검증(SSRF 방어)
 - [ ] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
 - [ ] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
@@ -53,6 +53,8 @@
 - 2026-11-09: Refresh Token 쿠키는 Synco의 `CookieUtil` 구조로 구현한다. 쿠키 처리를 한곳에 모으고 환경별 값을 설정으로 분리할 수 있기 때문이다. 쿠키 경로는 `/api/v1/auth`로 제한한다.
 - 2026-11-09: 설계 결정 D1, D2, D4~D9를 추천안으로 확정했다. Access Token은 메모리 보관, 수명 15분, Refresh Token 14일, 알림은 Discord만, 재알림 없음, 원본 14일 보관, 판정 중 30초 재검사, Redirect는 따라가지 않는다. 이유는 `docs/01-requirements.md`에 있다.
 - 2026-11-09: Kafka(18단계)는 3주 일정에서 제외하고 배포 후에 진행한다. 목표 규모에서는 없어도 처리할 수 있으므로, 검사 작업을 Worker로 분리하는 학습·포트폴리오 목적으로 도입한다.
+- 2026-11-15: Frontend 테스트 도구로 Vitest를 추가했다. 토큰 재발급처럼 틀리면 사용자가 계속 로그아웃되는 로직을 자동으로 검증하기 위해서다.
+- 2026-11-15: jjwt의 JSON 모듈은 `jjwt-jackson`(Jackson 2)을 쓴다. Spring Boot 4.1이 Jackson 2 버전도 관리하므로 앱의 Jackson 3과 함께 둘 수 있다.
 - 2026-11-14: 개발용 MariaDB의 기본 포트를 3307로 정했다. 다른 프로젝트의 MariaDB 컨테이너가 3306을 쓰고 있어, 두 DB를 함께 띄울 수 있게 하기 위해서다.
 - 2026-11-13: Backend 패키지는 기능 단위 아래에 `controller`, `dto`, `service`, `domain`, `repository`를 두는 구조로 바꿨다. 국내 실무에서 가장 흔하고 SmartFridge에서 써 본 방식이라 설명하기 쉽기 때문이다.
 
@@ -84,3 +86,10 @@
 - 요약: `main`에 푸시하거나 수동으로 실행하면 Backend 빌드·테스트(Testcontainers 포함)와 Frontend 린트·빌드를 동시에 실행하는 Workflow를 추가했다. 실패하면 테스트 리포트를 7일간 보관하고, README에 CI 배지를 달았다.
 - 주요 변경 파일: `.github/workflows/ci.yml`, `README.md`
 - 테스트 결과: 첫 실행([#43582120289](https://github.com/Chanjin629/api-monitor/actions/runs/43582120289)) 성공. Backend 약 2분, Frontend 약 20초. 린트 경고 0건.
+
+### 9단계: 회원 인증 (2026-11-15)
+
+- 요약: GitHub OAuth 로그인(Spring Security OAuth2 Client), jjwt Access Token과 JwtTokenFilter, Refresh Token 해시 저장·교체·재사용 감지, CookieUtil, 로그아웃·모든 기기 로그아웃, 읽기 전용 데모 로그인, 회원 탈퇴를 구현했다. Frontend는 로그인·데모 버튼, 로그인 처리 화면, 로그인 보호, 프로필 메뉴, 데모 안내 배너를 연결하고 Vitest를 추가했다.
+- 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/{auth,member,global/security}/**`, `V2__seed_demo_member.sql`, `application*.yml`, `frontend/src/{app,features/auth,shared/api,pages}/**`, `.github/workflows/ci.yml`
+- 테스트 결과: Backend 40개 통과(JWT 4, 토큰 서비스 8, 인증 API 8, GitHub 로그인 4 추가). Frontend Vitest 9개 통과, 린트·빌드 통과. 개발 서버에서 로그인 보호, 데모 로그인·배너, GitHub 로그인 시작 주소(콜백 5173, state 포함) 확인. 실제 GitHub 계정으로 로그인 성공.
+- 발견한 문제: Vite 프록시를 문자열로 지정하면 Host가 바뀌어 GitHub 콜백 주소가 8080으로 만들어졌다. `changeOrigin: false`로 고쳤다.

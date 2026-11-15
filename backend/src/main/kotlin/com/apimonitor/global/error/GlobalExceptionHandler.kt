@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.resource.NoResourceFoundException
-import java.util.UUID
 
 /**
  * 모든 예외를 공통 실패 응답 형식으로 바꾼다.
@@ -88,7 +87,7 @@ class GlobalExceptionHandler {
             .body(ErrorResponse.of(errorCode, message, details, traceId))
     }
 
-    private fun newTraceId(): String = UUID.randomUUID().toString().replace("-", "").take(16)
+    private fun newTraceId(): String = TraceIds.newId()
 
     companion object {
         private const val INVALID_VALUE = "올바르지 않은 값입니다."

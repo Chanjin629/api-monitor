@@ -14,8 +14,31 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+        # Instant를 DATETIME 컬럼과 같은 TIMESTAMP 타입으로 다룬다.
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
   flyway:
     locations: classpath:db/migration
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
+            # 공개 프로필만 읽는다. 이메일과 저장소 권한은 요청하지 않는다.
+            scope: read:user
+
+auth:
+  jwt:
+    # 운영에서는 JWT_SECRET 환경 변수가 없으면 서버가 시작되지 않는다.
+    secret: ${JWT_SECRET}
+    issuer: api-monitor
+    access-token-ttl: 15m
+    demo-token-ttl: 60m
+  refresh-token-ttl: 14d
+  cookie:
+    secure: true
 
 springdoc:
   swagger-ui:

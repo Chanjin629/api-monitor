@@ -119,9 +119,11 @@ backend/src/main/kotlin/com/apimonitor/
 frontend/src/
 ├── main.tsx
 ├── app/
-│   ├── router.tsx          라우트 정의, 로그인 필요 경로 보호
+│   ├── router.tsx          라우트 정의
+│   ├── RequireAuth.tsx     로그인 필요 경로 보호 (새로고침 시 재발급 시도)
 │   ├── providers.tsx       TanStack Query 등 전역 설정
-│   └── layout/             공통 레이아웃, 내비게이션
+│   ├── queryClient.ts      서버 데이터 캐시 설정
+│   └── layout/             공통 레이아웃, 내비게이션, 프로필 메뉴, 데모 안내
 ├── pages/
 │   ├── LandingPage.tsx     서비스 소개, 로그인·데모 버튼
 │   ├── AuthCallbackPage.tsx  로그인 후 토큰 받기
@@ -132,7 +134,7 @@ frontend/src/
 │   ├── SettingsPage.tsx    알림 채널, 계정 관리
 │   └── NotFoundPage.tsx    없는 주소 안내
 ├── features/
-│   ├── auth/               로그인 상태, 토큰 재발급 API
+│   ├── auth/               GitHub·데모 로그인, 로그아웃, 내 정보 조회
 │   ├── monitors/           모니터 API, 목록, 폼 컴포넌트
 │   ├── charts/             Recharts 응답 시간 그래프
 │   ├── incidents/          장애 API, 표

@@ -1,4 +1,20 @@
 # 테스트 설정. DB 연결 정보는 Testcontainers가 주입한다.
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            # 테스트는 실제 GitHub를 호출하지 않는다.
+            client-id: test-client-id
+            client-secret: test-client-secret
+
+auth:
+  jwt:
+    secret: SvgvwpW6j+qJC0CMWj8GY4tsmcgSImJ9q1A5RYilO90=
+  cookie:
+    secure: false
+
 logging:
   level:
     org.flywaydb: warn
