@@ -22,5 +22,12 @@ enum class ErrorCode(
     DEMO_READ_ONLY(HttpStatus.FORBIDDEN, "데모에서는 변경할 수 없습니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "권한이 없습니다."),
 
+    MONITOR_NOT_FOUND(HttpStatus.NOT_FOUND, "모니터를 찾을 수 없습니다."),
+    MONITOR_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "모니터는 20개까지 등록할 수 있습니다."),
+    MONITOR_ALREADY_PAUSED(HttpStatus.CONFLICT, "이미 일시 정지된 모니터입니다."),
+    MONITOR_NOT_PAUSED(HttpStatus.CONFLICT, "일시 정지 상태가 아닌 모니터입니다."),
+    URL_BLOCKED(HttpStatus.UNPROCESSABLE_CONTENT, "검사할 수 없는 URL입니다. 공개된 주소인지 확인해 주세요."),
+    HEADER_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, "지정할 수 없는 요청 헤더입니다."),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
 }

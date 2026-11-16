@@ -15,6 +15,9 @@ auth:
   cookie:
     secure: false
 
+crypto:
+  secret: i+RSNH2n2xUbjYhYY7fX0gt90FUzjUInH7OvAXxIiyY=
+
 logging:
   level:
     org.flywaydb: warn

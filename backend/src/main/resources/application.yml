@@ -40,6 +40,10 @@ auth:
   cookie:
     secure: true
 
+crypto:
+  # 요청 헤더 값 암호화 키. 운영에서는 CRYPTO_SECRET 환경 변수가 없으면 서버가 시작되지 않는다.
+  secret: ${CRYPTO_SECRET}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

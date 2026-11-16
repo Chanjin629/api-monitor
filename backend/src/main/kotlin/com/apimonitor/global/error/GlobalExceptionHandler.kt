@@ -25,7 +25,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException::class)
     fun handleBusiness(e: BusinessException): ResponseEntity<ErrorResponse> =
-        respond(e.errorCode, message = e.message ?: e.errorCode.message)
+        respond(e.errorCode, message = e.message ?: e.errorCode.message, details = e.details)
 
     /** @RequestBody 검증 실패 */
     @ExceptionHandler(MethodArgumentNotValidException::class)

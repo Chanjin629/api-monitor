@@ -226,8 +226,12 @@ Refresh Token 쿠키 속성
 | method | 아니요 | `GET`(기본), `HEAD` |
 | intervalMinutes | 예 | 1, 5, 10, 30, 60 |
 | timeoutSeconds | 아니요 | 1~30, 기본 10 |
-| expectedStatusCodes | 아니요 | 100~599, 최대 5개. 없으면 2xx |
-| headers | 아니요 | 최대 10개 |
+| expectedStatusCodes | 아니요 | 100~599, 최대 5개. 없거나 빈 배열이면 2xx. 응답에서도 빈 배열은 2xx를 뜻한다 |
+| headers | 아니요 | 최대 10개. 이름은 HTTP 헤더 이름 형식(최대 100자), 값은 줄바꿈 없이 최대 1000자. `Host`, `Content-Length`, `Transfer-Encoding`, `Connection`은 `422 HEADER_NOT_ALLOWED` |
+
+URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용자 정보와 80, 443, 1024~65535 외의 포트는 거부한다. `2130706433`, `0x7f000001`, `127.1`처럼 숫자로만 쓴 모호한 IP도 거부한다. 도메인은 DNS로 조회한 모든 IP를 검사하며, 하나라도 차단 대역이면 거부한다. DNS 조회에 실패한 도메인(아직 배포 전인 주소 등)은 등록을 허용하고, 검사 시점에 다시 검증한다.
+
+첫 검사 시각(`nextCheckAt`)은 등록 시각부터 0~30초 사이의 무작위 시각이다. 여러 모니터를 한꺼번에 등록해도 검사가 한 순간에 몰리지 않게 하기 위해서다.
 
 응답 `201 Created`
 
@@ -276,7 +280,7 @@ Refresh Token 쿠키 속성
 
 ### 4.2 GET /api/v1/monitors
 
-각 항목은 등록 응답과 같은 형식이며, 24시간 가동률이 추가된다.
+각 항목은 등록 응답과 같은 형식이며, 24시간 가동률이 추가된다. `uptime24h`는 시간별 집계를 구현하는 14단계 전까지 항상 `null`이다. 모니터는 최대 20개라 페이지를 나누지 않으며 `nextCursor`는 항상 `null`이다.
 
 ```json
 {
@@ -317,7 +321,7 @@ Refresh Token 쿠키 속성
 
 ### 4.4 PATCH /api/v1/monitors/{id}
 
-보낸 필드만 변경한다. `headers`는 보내면 전체를 교체하고, 보내지 않으면 유지한다. 가려진 값을 다시 저장하는 사고를 막기 위해 `value`가 `********`이면 `400 VALIDATION_FAILED`로 거부한다.
+보낸 필드만 변경한다. `headers`는 보내면 전체를 교체하고(빈 배열이면 모두 삭제), 보내지 않으면 유지한다. `expectedStatusCodes`를 빈 배열로 보내면 2xx로 되돌린다. 가려진 값을 다시 저장하는 사고를 막기 위해 `value`가 `********`이면 `400 VALIDATION_FAILED`로 거부한다.
 
 ```json
 {

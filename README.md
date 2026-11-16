@@ -49,7 +49,19 @@ cd frontend && npm install && npm run dev
 
 - 화면: http://localhost:5173 (GitHub 로그인 또는 데모 체험)
 - API 문서: http://localhost:8080/swagger-ui.html (데모 로그인으로 받은 accessToken을 Authorize에 입력)
-- 환경 변수 목록은 [.env.example](.env.example)에 있습니다.
+- 환경 변수 목록은 [.env.example](.env.example)에 있습니다. 운영에서는 `JWT_SECRET`과 요청 헤더 암호화 키 `CRYPTO_SECRET`(Base64로 인코딩한 32바이트)을 반드시 지정합니다.
+
+## 주요 API
+
+| 기능 | API |
+| --- | --- |
+| 로그인 | `GET /oauth2/authorization/github`, `POST /api/v1/auth/demo`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` |
+| 회원 | `GET /api/v1/members/me`, `DELETE /api/v1/members/me` |
+| 모니터 | `GET·POST /api/v1/monitors`, `GET·PATCH·DELETE /api/v1/monitors/{id}`, `POST /api/v1/monitors/{id}/pause`, `/resume` |
+
+- 모니터 URL은 등록·수정할 때 SSRF 검증을 거칩니다. 내부망, 루프백, 클라우드 메타데이터 주소 등은 `422 URL_BLOCKED`로 거부합니다.
+- 요청 헤더 값은 AES-GCM으로 암호화해 저장하고, 응답에서는 `********`로 가립니다.
+- 자세한 요청·응답 형식은 [API 명세](docs/05-api-spec.md)와 Swagger UI를 참고하세요.
 
 ## 테스트
 

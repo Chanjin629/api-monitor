@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 10 (모니터 등록 및 관리 + SSRF 방어)
+현재 단계: 11 (주기적 API 검사)
 
 ## 로드맵
 
@@ -20,7 +20,7 @@
 
 ### 핵심 기능
 - [x] 9. 회원 인증 (GitHub OAuth 로그인, 로그아웃, JWT, 데모 로그인)
-- [ ] 10. 모니터 등록 및 관리 + URL 검증(SSRF 방어)
+- [x] 10. 모니터 등록 및 관리 + URL 검증(SSRF 방어)
 - [ ] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
 - [ ] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
 - [ ] 13. 장애·복구 알림 (Discord Webhook)
@@ -93,3 +93,10 @@
 - 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/{auth,member,global/security}/**`, `V2__seed_demo_member.sql`, `application*.yml`, `frontend/src/{app,features/auth,shared/api,pages}/**`, `.github/workflows/ci.yml`
 - 테스트 결과: Backend 40개 통과(JWT 4, 토큰 서비스 8, 인증 API 8, GitHub 로그인 4 추가). Frontend Vitest 9개 통과, 린트·빌드 통과. 개발 서버에서 로그인 보호, 데모 로그인·배너, GitHub 로그인 시작 주소(콜백 5173, state 포함) 확인. 실제 GitHub 계정으로 로그인 성공.
 - 발견한 문제: Vite 프록시를 문자열로 지정하면 Host가 바뀌어 GitHub 콜백 주소가 8080으로 만들어졌다. `changeOrigin: false`로 고쳤다.
+
+### 10단계: 모니터 등록 및 관리 + SSRF 방어 (2026-11-16)
+
+- 요약: 모니터 API 7개(목록, 등록, 상세, 수정, 삭제, 일시 정지, 재개)와 소유자 검증(다른 회원의 모니터는 404), 회원 행 잠금으로 지키는 20개 제한, 첫 검사 시각 분산(0~30초)을 구현했다. SSRF 검증기는 스킴·사용자 정보·포트·모호한 숫자 IP를 거부하고, DNS로 조회한 모든 IP를 CLAUDE.md의 차단 대역과 대조한다. 요청 헤더는 AES-GCM으로 암호화해 저장하고 응답에서는 가린다. Frontend는 대시보드 목록, 등록·수정 폼(헤더 다시 입력 방식), 상세 화면(정지·재개·수정·삭제)을 연결했다.
+- 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/{monitor,global/ssrf,global/crypto}/**`, `global/error/{BusinessException,ErrorCode,GlobalExceptionHandler}.kt`, `member/repository/MemberRepository.kt`, `application*.yml`, `.env.example`, `frontend/src/features/monitors/**`, `frontend/src/pages/{Dashboard,MonitorForm,MonitorDetail}Page.tsx`, `docs/05-api-spec.md`, `README.md`
+- 테스트 결과: Backend 129개 통과(차단 대역 41, URL 검증 26, 암호화 4, 모니터 API 18 추가). Frontend Vitest 17개 통과(8개 추가), 린트·빌드 통과. GitHub 계정으로 화면에서 `127.0.0.1`·`169.254.169.254` 거부, 등록, 목록, 정지·재개, 수정(헤더 유지), 삭제를 확인했다. 서버 로그에 URL과 헤더 값이 남지 않는 것도 확인했다.
+- 남은 일: 검사 원본 기록(`check_results`)은 FK가 없어 모니터를 삭제해도 남으며, 12단계의 14일 파티션 삭제로 정리된다. DNS 조회에 실패한 URL은 등록을 허용하고 11단계의 검사 시점 검증에 맡긴다.
