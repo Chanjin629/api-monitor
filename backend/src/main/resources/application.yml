@@ -44,6 +44,20 @@ crypto:
   # 요청 헤더 값 암호화 키. 운영에서는 CRYPTO_SECRET 환경 변수가 없으면 서버가 시작되지 않는다.
   secret: ${CRYPTO_SECRET}
 
+check:
+  # 검사 시각이 지난 모니터를 찾는 주기
+  dispatch-interval-ms: 5000
+  dispatcher-enabled: true
+  # 한 번에 선점하는 최대 모니터 수와 동시 검사 수 (docs/01-requirements.md N-P2)
+  batch-size: 200
+  max-concurrency: 200
+
+logging:
+  level:
+    # 고객 API의 연결 오류(인증서 오류 등)는 정상적인 검사 결과다.
+    # Reactor Netty가 오류마다 남기는 WARN 스택 트레이스는 로그를 채우고 고객 도메인을 노출하므로 끈다.
+    reactor.netty.http.client.HttpClientConnect: error
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

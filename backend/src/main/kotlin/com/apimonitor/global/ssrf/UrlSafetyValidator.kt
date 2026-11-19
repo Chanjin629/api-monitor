@@ -24,6 +24,20 @@ class UrlSafetyValidator(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun validate(rawUrl: String) {
+        val host = validateSyntax(rawUrl)
+        val addresses = try {
+            hostResolver.resolve(host)
+        } catch (e: UnknownHostException) {
+            return
+        }
+        if (addresses.any(BlockedAddressRanges::isBlocked)) throw blocked("blocked address")
+    }
+
+    /**
+     * DNS 조회 없이 URL 형식만 검사하고 호스트를 돌려준다. IPv6 호스트는 대괄호를 뗀다.
+     * 검사 시점에도 같은 규칙을 쓰도록 분리했다. IP 확인은 SafeAddressResolver가 연결할 때 한다.
+     */
+    fun validateSyntax(rawUrl: String): String {
         val uri = try {
             URI(rawUrl.trim())
         } catch (e: URISyntaxException) {
@@ -38,13 +52,7 @@ class UrlSafetyValidator(
         if (host.isNullOrBlank()) throw blocked("no host")
         if (!isAllowedPort(uri.port)) throw blocked("port")
         if (isAmbiguousNumericHost(host)) throw blocked("ambiguous numeric host")
-
-        val addresses = try {
-            hostResolver.resolve(host)
-        } catch (e: UnknownHostException) {
-            return
-        }
-        if (addresses.any(BlockedAddressRanges::isBlocked)) throw blocked("blocked address")
+        return host
     }
 
     private fun isAllowedPort(port: Int): Boolean =

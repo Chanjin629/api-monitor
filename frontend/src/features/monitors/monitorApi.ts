@@ -212,6 +212,21 @@ export function statusDisplay(state: Monitor['state']): { label: string; classNa
   }
 }
 
+const RESULT_LABELS: Record<string, string> = {
+  SUCCESS: '성공',
+  TIMEOUT: '시간 초과',
+  CONNECTION_ERROR: '연결 실패',
+  DNS_ERROR: '도메인 조회 실패',
+  TLS_ERROR: '인증서 오류',
+  UNEXPECTED_STATUS: '예상과 다른 상태 코드',
+  BLOCKED: '검사 차단',
+}
+
+/** 검사 결과 코드(docs/01-requirements.md 2.4)를 화면 문구로 바꾼다. 모르는 코드는 그대로 보여 준다. */
+export function resultLabel(result: string): string {
+  return RESULT_LABELS[result] ?? result
+}
+
 /** 대시보드 정렬 순서: 장애, 확인 중, 나머지 */
 export function statusPriority(state: Monitor['state']): number {
   if (state.status === 'DOWN') return 0

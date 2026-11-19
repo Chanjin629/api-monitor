@@ -18,6 +18,11 @@ auth:
 crypto:
   secret: i+RSNH2n2xUbjYhYY7fX0gt90FUzjUInH7OvAXxIiyY=
 
+check:
+  # 다른 테스트 중에 등록한 모니터가 실제로 외부 호출되지 않도록 주기 실행을 끈다.
+  # 디스패처 테스트는 dispatch()를 직접 호출한다.
+  dispatcher-enabled: false
+
 logging:
   level:
     org.flywaydb: warn

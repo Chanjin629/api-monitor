@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 11 (주기적 API 검사)
+현재 단계: 12 (검사 결과 저장 + 장애 감지 + 파티션 관리)
 
 ## 로드맵
 
@@ -21,7 +21,7 @@
 ### 핵심 기능
 - [x] 9. 회원 인증 (GitHub OAuth 로그인, 로그아웃, JWT, 데모 로그인)
 - [x] 10. 모니터 등록 및 관리 + URL 검증(SSRF 방어)
-- [ ] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
+- [x] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
 - [ ] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
 - [ ] 13. 장애·복구 알림 (Discord Webhook)
 - [ ] 14. 대시보드 (요약, API별 상태, 응답 시간 그래프, 장애 이력) + 시간별 집계 + 데모 시드 데이터
@@ -53,6 +53,8 @@
 - 2026-11-09: Refresh Token 쿠키는 Synco의 `CookieUtil` 구조로 구현한다. 쿠키 처리를 한곳에 모으고 환경별 값을 설정으로 분리할 수 있기 때문이다. 쿠키 경로는 `/api/v1/auth`로 제한한다.
 - 2026-11-09: 설계 결정 D1, D2, D4~D9를 추천안으로 확정했다. Access Token은 메모리 보관, 수명 15분, Refresh Token 14일, 알림은 Discord만, 재알림 없음, 원본 14일 보관, 판정 중 30초 재검사, Redirect는 따라가지 않는다. 이유는 `docs/01-requirements.md`에 있다.
 - 2026-11-09: Kafka(18단계)는 3주 일정에서 제외하고 배포 후에 진행한다. 목표 규모에서는 없어도 처리할 수 있으므로, 검사 작업을 Worker로 분리하는 학습·포트폴리오 목적으로 도입한다.
+- 2026-11-19: 고객 API 검사에서 응답 본문을 읽지 않도록 WebClient의 `exchangeToFlux`로 상태 코드만 받고 바로 구독을 취소한다. `exchangeToMono`는 남은 본문을 끝까지 읽어, 본문이 느린 API를 `TIMEOUT`으로 잘못 판정했다.
+- 2026-11-19: 검사 요청은 연결을 재사용하지 않는다. 매번 DNS 조회와 IP 검증을 하고, 응답 시간을 같은 조건으로 재기 위해서다.
 - 2026-11-15: Frontend 테스트 도구로 Vitest를 추가했다. 토큰 재발급처럼 틀리면 사용자가 계속 로그아웃되는 로직을 자동으로 검증하기 위해서다.
 - 2026-11-15: jjwt의 JSON 모듈은 `jjwt-jackson`(Jackson 2)을 쓴다. Spring Boot 4.1이 Jackson 2 버전도 관리하므로 앱의 Jackson 3과 함께 둘 수 있다.
 - 2026-11-14: 개발용 MariaDB의 기본 포트를 3307로 정했다. 다른 프로젝트의 MariaDB 컨테이너가 3306을 쓰고 있어, 두 DB를 함께 띄울 수 있게 하기 위해서다.
@@ -100,3 +102,11 @@
 - 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/{monitor,global/ssrf,global/crypto}/**`, `global/error/{BusinessException,ErrorCode,GlobalExceptionHandler}.kt`, `member/repository/MemberRepository.kt`, `application*.yml`, `.env.example`, `frontend/src/features/monitors/**`, `frontend/src/pages/{Dashboard,MonitorForm,MonitorDetail}Page.tsx`, `docs/05-api-spec.md`, `README.md`
 - 테스트 결과: Backend 129개 통과(차단 대역 41, URL 검증 26, 암호화 4, 모니터 API 18 추가). Frontend Vitest 17개 통과(8개 추가), 린트·빌드 통과. GitHub 계정으로 화면에서 `127.0.0.1`·`169.254.169.254` 거부, 등록, 목록, 정지·재개, 수정(헤더 유지), 삭제를 확인했다. 서버 로그에 URL과 헤더 값이 남지 않는 것도 확인했다.
 - 남은 일: 검사 원본 기록(`check_results`)은 FK가 없어 모니터를 삭제해도 남으며, 12단계의 14일 파티션 삭제로 정리된다. DNS 조회에 실패한 URL은 등록을 허용하고 11단계의 검사 시점 검증에 맡긴다.
+
+### 11단계: 주기적 API 검사 (2026-11-19)
+
+- 요약: 5초마다 검사 시각이 지난 모니터를 `FOR UPDATE SKIP LOCKED`로 선점하고 다음 검사 시각을 먼저 옮기는 디스패처, `CheckExecutor` 인터페이스 뒤의 WebClient·코루틴 실행기(동시 200개 제한), 연결 시점에 DNS 결과를 검증하고 검증한 IP로만 연결하는 `SafeAddressResolver`를 구현했다. 결과는 7종(SUCCESS, TIMEOUT, CONNECTION_ERROR, DNS_ERROR, TLS_ERROR, UNEXPECTED_STATUS, BLOCKED)으로 분류해 `monitor_states`의 마지막 검사 정보에 반영한다. Redirect는 따라가지 않고 응답 본문은 읽지 않는다. Frontend 상세 화면에 결과를 한글로 표시한다.
+- 주요 변경 파일: `backend/build.gradle.kts`(webflux, coroutines, WireMock), `backend/src/main/kotlin/com/apimonitor/check/**`, `global/ssrf/{SafeAddressResolver,UrlSafetyValidator}.kt`, `application{,-test}.yml`, `frontend/src/features/monitors/monitorApi.ts`, `frontend/src/pages/MonitorDetailPage.tsx`, `docs/02-architecture.md`
+- 테스트 결과: Backend 150개 통과(연결 시점 검증 5, WireMock 실행기 12, 디스패처 4 추가). Frontend Vitest 18개 통과, 린트·빌드 통과. 개발 서버에서 실제 사이트로 SUCCESS(api.github.com), TLS_ERROR(만료·자체 서명·도메인 불일치 인증서), DNS_ERROR(없는 도메인), BLOCKED(127.0.0.1로 연결되는 도메인)를 확인했다. 서버 두 대를 같은 DB로 띄워도 정상 동작했다.
+- 발견한 문제: `exchangeToMono`가 본문을 끝까지 읽어 느린 본문을 TIMEOUT으로 판정했다(테스트로 발견, `exchangeToFlux`와 구독 취소로 수정). Reactor Netty가 인증서 오류마다 고객 도메인이 담긴 WARN 스택 트레이스를 남겨 해당 로거를 ERROR로 올렸다.
+- 남은 일: 상태 전환(UNKNOWN→UP 등)과 30초 재검사, 원본 기록 저장은 12단계에서 한다. 그 전까지 상태 배지는 "확인 전"으로 남는다.

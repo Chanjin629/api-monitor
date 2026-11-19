@@ -7,6 +7,7 @@ import {
   fetchMonitor,
   monitorKeys,
   pauseMonitor,
+  resultLabel,
   resumeMonitor,
   statusDisplay,
   type Monitor,
@@ -133,9 +134,14 @@ export function MonitorDetailPage() {
         <Item label="연속 실패">{state.consecutiveFailures}회</Item>
         <Item label="마지막 검사">
           {state.lastCheckedAt
-            ? `${new Date(state.lastCheckedAt).toLocaleString()} · ${state.lastResult ?? ''} ${state.lastStatusCode ?? ''} ${
-                state.lastResponseTimeMs != null ? `${state.lastResponseTimeMs}ms` : ''
-              }`
+            ? [
+                new Date(state.lastCheckedAt).toLocaleString(),
+                state.lastResult ? resultLabel(state.lastResult) : null,
+                state.lastStatusCode,
+                state.lastResponseTimeMs != null ? `${state.lastResponseTimeMs}ms` : null,
+              ]
+                .filter((part) => part != null)
+                .join(' · ')
             : '첫 검사를 기다리는 중입니다'}
         </Item>
         <Item label="다음 검사">{state.nextCheckAt ? new Date(state.nextCheckAt).toLocaleString() : '-'}</Item>

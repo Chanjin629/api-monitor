@@ -4,6 +4,7 @@ import {
   emptyFormValues,
   formValuesFrom,
   parseStatusCodes,
+  resultLabel,
   statusDisplay,
   toFieldErrors,
   toPayload,
@@ -119,5 +120,14 @@ describe('statusDisplay', () => {
     expect(statusDisplay({ ...monitor.state, status: 'BLOCKED' }).label).toBe('검사 차단')
     expect(statusDisplay({ ...monitor.state, status: 'PAUSED' }).label).toBe('일시 정지')
     expect(statusDisplay({ ...monitor.state, status: 'UNKNOWN' }).label).toBe('확인 전')
+  })
+})
+
+describe('resultLabel', () => {
+  it('검사 결과 코드를 한글로 바꾸고, 모르는 코드는 그대로 둔다', () => {
+    expect(resultLabel('SUCCESS')).toBe('성공')
+    expect(resultLabel('TIMEOUT')).toBe('시간 초과')
+    expect(resultLabel('BLOCKED')).toBe('검사 차단')
+    expect(resultLabel('NEW_TYPE')).toBe('NEW_TYPE')
   })
 })
