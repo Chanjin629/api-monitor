@@ -1,6 +1,5 @@
 package com.apimonitor.check.repository
 
-import com.apimonitor.check.dto.CheckResult
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import java.time.Instant
@@ -8,7 +7,7 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 /**
- * 검사 대상 선점과 결과 반영. monitor의 JPA 엔티티를 쓰지 않고 필요한 컬럼만 SQL로 다룬다.
+ * 검사 대상 선점. monitor의 JPA 엔티티를 쓰지 않고 필요한 컬럼만 SQL로 다룬다.
  * DB 시각은 JPA 설정과 같은 UTC 기준으로 읽고 쓴다.
  */
 @Repository
@@ -56,20 +55,6 @@ class CheckTargetRepository(
             nextCheckAts.map { (monitorId, nextCheckAt) -> arrayOf<Any>(utc(nextCheckAt), monitorId) },
         )
     }
-
-    fun updateLastResult(result: CheckResult): Int =
-        jdbcTemplate.update(
-            """
-            UPDATE monitor_states
-            SET last_checked_at = ?, last_result = ?, last_status_code = ?, last_response_time_ms = ?
-            WHERE monitor_id = ?
-            """.trimIndent(),
-            utc(result.checkedAt),
-            result.type.name,
-            result.statusCode,
-            result.responseTimeMs,
-            result.monitorId,
-        )
 
     private fun utc(instant: Instant): LocalDateTime = LocalDateTime.ofInstant(instant, ZoneOffset.UTC)
 }

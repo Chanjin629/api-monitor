@@ -304,7 +304,7 @@ erDiagram
 | monitor_id | BIGINT | FK, NOT NULL | |
 | started_at | DATETIME(3) | NOT NULL | 첫 번째 실패 시각 |
 | detected_at | DATETIME(3) | NOT NULL | 장애로 판정한 시각 |
-| resolved_at | DATETIME(3) | NULL | 복구 시각. NULL이면 진행 중 |
+| resolved_at | DATETIME(3) | NULL | 복구 시각(연속 성공 2회 중 첫 성공 시각). NULL이면 진행 중 |
 | duration_seconds | INT | NULL | 복구할 때 저장 |
 | cause | VARCHAR(30) | NOT NULL | 판정 시점의 실패 종류 |
 | last_status_code | SMALLINT | NULL | |

@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 12 (검사 결과 저장 + 장애 감지 + 파티션 관리)
+현재 단계: 13 (장애·복구 알림, Discord Webhook)
 
 ## 로드맵
 
@@ -22,7 +22,7 @@
 - [x] 9. 회원 인증 (GitHub OAuth 로그인, 로그아웃, JWT, 데모 로그인)
 - [x] 10. 모니터 등록 및 관리 + URL 검증(SSRF 방어)
 - [x] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
-- [ ] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
+- [x] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
 - [ ] 13. 장애·복구 알림 (Discord Webhook)
 - [ ] 14. 대시보드 (요약, API별 상태, 응답 시간 그래프, 장애 이력) + 시간별 집계 + 데모 시드 데이터
 
@@ -110,3 +110,11 @@
 - 테스트 결과: Backend 150개 통과(연결 시점 검증 5, WireMock 실행기 12, 디스패처 4 추가). Frontend Vitest 18개 통과, 린트·빌드 통과. 개발 서버에서 실제 사이트로 SUCCESS(api.github.com), TLS_ERROR(만료·자체 서명·도메인 불일치 인증서), DNS_ERROR(없는 도메인), BLOCKED(127.0.0.1로 연결되는 도메인)를 확인했다. 서버 두 대를 같은 DB로 띄워도 정상 동작했다.
 - 발견한 문제: `exchangeToMono`가 본문을 끝까지 읽어 느린 본문을 TIMEOUT으로 판정했다(테스트로 발견, `exchangeToFlux`와 구독 취소로 수정). Reactor Netty가 인증서 오류마다 고객 도메인이 담긴 WARN 스택 트레이스를 남겨 해당 로거를 ERROR로 올렸다.
 - 남은 일: 상태 전환(UNKNOWN→UP 등)과 30초 재검사, 원본 기록 저장은 12단계에서 한다. 그 전까지 상태 배지는 "확인 전"으로 남는다.
+
+### 12단계: 검사 결과 저장 + 장애 감지 + 파티션 관리 (2026-11-20)
+
+- 요약: 검사 결과 하나를 한 트랜잭션으로 처리한다. 상태 행을 잠그고, 원본 기록을 `INSERT IGNORE`로 저장한 뒤, `MonitorState`의 판정 규칙(실패 3회 장애, 장애 중 성공 2회 복구, 판정 중 30초 재검사, 장애 중 주기는 설정 주기와 5분 중 짧은 쪽, BLOCKED 제외)으로 상태를 바꾼다. 장애 시작·복구 때 `incidents`를 기록하고 활성 알림 채널마다 `notification_deliveries`에 예약을 저장한다. `PartitionManager`가 서버 시작 시와 매일 UTC 00:10에 3일치 날짜 파티션을 만들고 14일 지난 파티션을 지운다.
+- 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/monitor/domain/MonitorState.kt`, `check/service/CheckResultProcessor.kt`, `check/repository/CheckResultRepository.kt`, `check/scheduler/PartitionManager.kt`, `incident/**`, `notification/repository/NotificationDeliveryRepository.kt`, `docs/02-architecture.md`, `docs/03-erd.md`
+- 테스트 결과: Backend 168개 통과(판정 규칙 11, 결과 처리 6, 파티션 2 추가, 기존 결과 처리 테스트 1개 이동). 개발 서버에서 성공 모니터는 정상, 없는 도메인은 30초 간격 재검사 후 3번째 실패에 장애(시작 시각은 첫 실패), URL을 고치자 30초 뒤 두 번째 성공으로 복구(지속 95초)되는 것을 확인했다. 시작 시 날짜 파티션 생성도 확인했다.
+- 발견한 문제: 파티션 테스트가 공유 DB의 파티션을 지워 다른 파티션 테스트의 가정이 깨졌다. 앞으로 만들어 둔 마지막 날짜를 확인하도록 테스트를 고쳤다.
+- 남은 일: 알림 채널 등록 API가 없어 실제 예약은 13단계부터 생긴다. 장애 이력 조회 API와 화면, 시간별 집계와 365일 삭제는 14단계에서 한다.

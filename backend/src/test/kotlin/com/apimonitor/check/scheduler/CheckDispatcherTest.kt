@@ -2,11 +2,8 @@ package com.apimonitor.check.scheduler
 
 import com.apimonitor.TestcontainersConfiguration
 import com.apimonitor.check.dto.CheckCommand
-import com.apimonitor.check.dto.CheckResult
-import com.apimonitor.check.dto.CheckResultType
 import com.apimonitor.check.executor.CheckExecutor
 import com.apimonitor.check.repository.CheckTargetRepository
-import com.apimonitor.check.service.CheckResultProcessor
 import com.apimonitor.global.crypto.AesGcmEncryptor
 import com.apimonitor.member.dto.GithubUser
 import com.apimonitor.member.service.MemberService
@@ -40,7 +37,6 @@ import java.util.concurrent.TimeUnit
 @SpringBootTest
 class CheckDispatcherTest(
     @Autowired private val checkTargetRepository: CheckTargetRepository,
-    @Autowired private val checkResultProcessor: CheckResultProcessor,
     @Autowired private val transactionTemplate: TransactionTemplate,
     @Autowired private val encryptor: AesGcmEncryptor,
     @Autowired private val jsonMapper: JsonMapper,
@@ -115,25 +111,6 @@ class CheckDispatcherTest(
         assertThat(executor.commands.map { it.monitorId }).doesNotContain(due)
         // 잠금을 기다렸다면 상대 트랜잭션이 끝날 때까지 멈췄을 것이다.
         assertThat(elapsedMs).isLessThan(3000)
-    }
-
-    @Test
-    fun `검사 결과를 받으면 마지막 검사 정보를 갱신한다`() {
-        val memberId = newMember()
-        val monitorId = createMonitor(memberId)
-
-        checkResultProcessor.process(CheckResult(monitorId, now, CheckResultType.SUCCESS, 200, 124))
-
-        val state = monitorService.getMonitor(memberId, monitorId).state
-        assertThat(state.lastCheckedAt).isEqualTo(now)
-        assertThat(state.lastResult).isEqualTo("SUCCESS")
-        assertThat(state.lastStatusCode).isEqualTo(200)
-        assertThat(state.lastResponseTimeMs).isEqualTo(124)
-
-        checkResultProcessor.process(CheckResult(monitorId, now.plusSeconds(60), CheckResultType.TIMEOUT))
-        val failed = monitorService.getMonitor(memberId, monitorId).state
-        assertThat(failed.lastResult).isEqualTo("TIMEOUT")
-        assertThat(failed.lastStatusCode).isNull()
     }
 
     private fun dispatcherWith(executor: CheckExecutor) = CheckDispatcher(
