@@ -1,6 +1,8 @@
 package com.apimonitor
 
 import com.apimonitor.global.ssrf.HostResolver
+import com.apimonitor.notification.discord.DiscordSendResult
+import com.apimonitor.notification.discord.DiscordWebhookClient
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.context.annotation.Bean
@@ -9,6 +11,9 @@ import org.testcontainers.mariadb.MariaDBContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.InetAddress
 import java.net.UnknownHostException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * 통합 테스트 공통 설정. 모든 @SpringBootTest가 이 설정을 import해 같은 컨텍스트와 MariaDB 컨테이너를 공유한다.
@@ -44,5 +49,30 @@ class TestcontainersConfiguration {
 				throw UnknownHostException(host)
 			}
 		}
+	}
+
+	/** 실제 Discord로 보내지 않고 보낸 내용을 기록한다. */
+	@Bean
+	@Primary
+	fun testDiscordClient(): TestDiscordClient = TestDiscordClient()
+}
+
+/**
+ * 가짜 Discord 클라이언트. Webhook URL마다 돌려줄 결과를 정해 둘 수 있고, 정하지 않으면 성공으로 처리한다.
+ * 테스트끼리 같은 DB를 공유하므로, 테스트마다 다른 Webhook URL을 써서 서로의 결과가 섞이지 않게 한다.
+ */
+class TestDiscordClient : DiscordWebhookClient() {
+	private val results = ConcurrentHashMap<String, ConcurrentLinkedQueue<DiscordSendResult>>()
+	private val sent = ConcurrentHashMap<String, CopyOnWriteArrayList<String>>()
+
+	fun willReturn(webhookUrl: String, vararg next: DiscordSendResult) {
+		results.computeIfAbsent(webhookUrl) { ConcurrentLinkedQueue() }.addAll(next)
+	}
+
+	fun messagesTo(webhookUrl: String): List<String> = sent[webhookUrl].orEmpty()
+
+	override fun send(webhookUrl: String, content: String): DiscordSendResult {
+		sent.computeIfAbsent(webhookUrl) { CopyOnWriteArrayList() }.add(content)
+		return results[webhookUrl]?.poll() ?: DiscordSendResult.Sent
 	}
 }

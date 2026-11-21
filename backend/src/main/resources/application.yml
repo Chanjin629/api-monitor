@@ -52,6 +52,11 @@ check:
   batch-size: 200
   max-concurrency: 200
 
+notification:
+  # 예약된 알림을 Discord로 보내는 주기
+  send-interval-ms: 5000
+  sender-enabled: true
+
 logging:
   level:
     # 고객 API의 연결 오류(인증서 오류 등)는 정상적인 검사 결과다.

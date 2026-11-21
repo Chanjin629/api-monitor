@@ -483,9 +483,13 @@ URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용�
 
 실패: `409 CHANNEL_LIMIT_EXCEEDED`, `422 WEBHOOK_URL_INVALID`
 
+Webhook URL은 `https://discord.com/api/webhooks/{숫자 ID}/{토큰}` 형식만 받는다. `http`, 다른 도메인, 쿼리 문자열이 붙은 주소는 `422 WEBHOOK_URL_INVALID`다. 주소를 discord.com으로 고정해 이 입력이 내부망 호출 통로(SSRF)가 되지 않게 한다.
+
+`GET /api/v1/notification-channels`는 `{ "items": [ ... ] }` 형식으로 등록 응답과 같은 항목을 돌려준다. 최대 3개라 페이지를 나누지 않는다. `DELETE /api/v1/notification-channels/{id}`는 `200`과 `"data": null`을 응답하고, 보내지 못한 이 채널의 알림 예약도 함께 삭제한다. 다른 회원의 채널은 `404 CHANNEL_NOT_FOUND`다.
+
 ### 7.2 PATCH /api/v1/notification-channels/{id}
 
-`name`, `webhookUrl`, `enabled` 중 보낸 필드만 변경한다.
+`name`, `webhookUrl`, `enabled` 중 보낸 필드만 변경한다. 채널을 끄면 이미 예약된 알림도 보내지 않는다(`FAILED`, `CHANNEL_DISABLED`).
 
 ### 7.3 POST /api/v1/notification-channels/{id}/test
 
@@ -515,3 +519,10 @@ URL: https://api.example.com/health
 ```
 
 알림 메시지에 쿼리 문자열은 넣지 않는다. URL에 API 키를 넣어 쓰는 사용자의 키가 Discord에 노출되지 않게 하기 위해서다.
+
+발송 규칙
+
+- 메시지와 함께 `allowed_mentions: { "parse": [] }`를 보낸다. 모니터 이름에 `@everyone`이 들어 있어도 채널 멤버를 호출하지 않는다.
+- 실패하면 1분, 5분, 15분, 1시간 간격으로 다시 보내고, 5번째도 실패하면 `FAILED`로 끝낸다. 429는 Discord가 알려 준 대기 시간 뒤에 보낸다. 400, 401, 403, 404는 다시 보내도 소용없으므로 바로 `FAILED`다.
+- 발송 기록(`last_error_code`)에는 `HTTP_503`, `TIMEOUT` 같은 코드만 남기고 응답 본문과 URL은 저장하지 않는다.
+- Discord가 오래 장애이면 장애 알림 재시도가 길어져 복구 알림이 먼저 도착할 수 있다. 드문 경우라 순서를 강제하지 않는다.

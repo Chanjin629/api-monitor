@@ -23,6 +23,10 @@ check:
   # 디스패처 테스트는 dispatch()를 직접 호출한다.
   dispatcher-enabled: false
 
+notification:
+  # 발송기 테스트는 sendDue()를 직접 호출한다.
+  sender-enabled: false
+
 logging:
   level:
     org.flywaydb: warn

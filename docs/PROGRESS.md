@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 13 (장애·복구 알림, Discord Webhook)
+현재 단계: 14 (대시보드 + 시간별 집계 + 데모 데이터)
 
 ## 로드맵
 
@@ -23,7 +23,7 @@
 - [x] 10. 모니터 등록 및 관리 + URL 검증(SSRF 방어)
 - [x] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
 - [x] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
-- [ ] 13. 장애·복구 알림 (Discord Webhook)
+- [x] 13. 장애·복구 알림 (Discord Webhook)
 - [ ] 14. 대시보드 (요약, API별 상태, 응답 시간 그래프, 장애 이력) + 시간별 집계 + 데모 시드 데이터
 
 ### 관측성
@@ -118,3 +118,11 @@
 - 테스트 결과: Backend 168개 통과(판정 규칙 11, 결과 처리 6, 파티션 2 추가, 기존 결과 처리 테스트 1개 이동). 개발 서버에서 성공 모니터는 정상, 없는 도메인은 30초 간격 재검사 후 3번째 실패에 장애(시작 시각은 첫 실패), URL을 고치자 30초 뒤 두 번째 성공으로 복구(지속 95초)되는 것을 확인했다. 시작 시 날짜 파티션 생성도 확인했다.
 - 발견한 문제: 파티션 테스트가 공유 DB의 파티션을 지워 다른 파티션 테스트의 가정이 깨졌다. 앞으로 만들어 둔 마지막 날짜를 확인하도록 테스트를 고쳤다.
 - 남은 일: 알림 채널 등록 API가 없어 실제 예약은 13단계부터 생긴다. 장애 이력 조회 API와 화면, 시간별 집계와 365일 삭제는 14단계에서 한다.
+
+### 13단계: 장애·복구 알림 (2026-11-20)
+
+- 요약: 알림 채널 API 5개(목록, 등록, 수정, 삭제, 테스트 발송)를 만들었다. Webhook 주소는 `https://discord.com/api/webhooks/{id}/{token}` 형식만 받고 AES-GCM으로 암호화해 저장하며, 응답에는 끝 4자리만 보여 준다. 채널은 회원당 3개까지다. 5초 주기 발송기가 예약된 알림을 `SKIP LOCKED`로 가져와 Discord로 보내고, 실패하면 1분·5분·15분·1시간 간격으로 재시도한 뒤 5번째 실패면 `FAILED`로 끝낸다. 429는 Discord가 알려 준 대기 시간을 지키고, 404 등은 바로 `FAILED`다. 메시지는 한국 시간으로 쓰고 URL의 쿼리 문자열을 빼며, 멘션을 막는다. Frontend 설정 화면에 채널 관리와 계정(모든 기기 로그아웃, 사용자 이름 확인 후 탈퇴)을 만들었다.
+- 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/notification/**`, `global/error/ErrorCode.kt`, `application{,-test}.yml`, `frontend/src/features/notifications/**`, `frontend/src/features/auth/authApi.ts`, `frontend/src/pages/SettingsPage.tsx`, `docs/05-api-spec.md`, `README.md`
+- 테스트 결과: Backend 197개 통과(채널 API 12, 발송기 7, Discord 클라이언트 5, 메시지 5 추가). Frontend Vitest 21개 통과, 린트·빌드 통과. 실제 Discord로 테스트 메시지, 장애 알림, 복구 알림(장애 시간 95초)이 각 1회 도착하는 것을 확인했다. 서버 로그에 Webhook 주소와 URL 쿼리가 남지 않았다.
+- 발견한 문제: 서버가 MVC로 동작해 `WebClient.Builder` 빈이 없어 Discord 클라이언트가 만들어지지 않았다. 검사 실행기처럼 WebClient를 직접 만들도록 고쳤다.
+- 남은 일: Discord가 오래 장애이면 복구 알림이 장애 알림보다 먼저 갈 수 있다(문서에 기록, 순서 강제 안 함).

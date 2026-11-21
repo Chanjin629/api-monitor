@@ -58,9 +58,11 @@ cd frontend && npm install && npm run dev
 | 로그인 | `GET /oauth2/authorization/github`, `POST /api/v1/auth/demo`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` |
 | 회원 | `GET /api/v1/members/me`, `DELETE /api/v1/members/me` |
 | 모니터 | `GET·POST /api/v1/monitors`, `GET·PATCH·DELETE /api/v1/monitors/{id}`, `POST /api/v1/monitors/{id}/pause`, `/resume` |
+| 알림 채널 | `GET·POST /api/v1/notification-channels`, `PATCH·DELETE /api/v1/notification-channels/{id}`, `POST /api/v1/notification-channels/{id}/test` |
 
 - 모니터 URL은 등록·수정할 때 SSRF 검증을 거칩니다. 내부망, 루프백, 클라우드 메타데이터 주소 등은 `422 URL_BLOCKED`로 거부합니다.
 - 요청 헤더 값은 AES-GCM으로 암호화해 저장하고, 응답에서는 `********`로 가립니다.
+- 장애가 시작되거나 복구되면 등록한 Discord Webhook으로 한 번씩 알립니다. Webhook 주소도 암호화해 저장하고 끝 4자리만 보여 줍니다.
 - 자세한 요청·응답 형식은 [API 명세](docs/05-api-spec.md)와 Swagger UI를 참고하세요.
 
 ## 테스트

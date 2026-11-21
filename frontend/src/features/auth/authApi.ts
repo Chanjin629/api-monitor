@@ -38,3 +38,12 @@ export async function logout({ allDevices = false } = {}) {
 export function fetchMe() {
   return apiRequest<Member>('/members/me')
 }
+
+/** 회원 탈퇴. 모니터, 장애 이력, 알림 채널이 모두 삭제되어 되돌릴 수 없다. */
+export async function withdraw() {
+  try {
+    await apiRequest<null>('/members/me', { method: 'DELETE' })
+  } finally {
+    tokenStore.clear()
+  }
+}

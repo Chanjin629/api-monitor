@@ -29,5 +29,10 @@ enum class ErrorCode(
     URL_BLOCKED(HttpStatus.UNPROCESSABLE_CONTENT, "검사할 수 없는 URL입니다. 공개된 주소인지 확인해 주세요."),
     HEADER_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, "지정할 수 없는 요청 헤더입니다."),
 
+    CHANNEL_NOT_FOUND(HttpStatus.NOT_FOUND, "알림 채널을 찾을 수 없습니다."),
+    CHANNEL_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "알림 채널은 3개까지 등록할 수 있습니다."),
+    WEBHOOK_URL_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "Discord Webhook 주소를 입력해 주세요."),
+    NOTIFICATION_SEND_FAILED(HttpStatus.BAD_GATEWAY, "테스트 메시지를 보내지 못했습니다. 주소를 확인해 주세요."),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
 }
