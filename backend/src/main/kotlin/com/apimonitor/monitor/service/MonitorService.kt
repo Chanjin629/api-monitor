@@ -1,5 +1,6 @@
 package com.apimonitor.monitor.service
 
+import com.apimonitor.check.repository.CheckResultRepository
 import com.apimonitor.global.crypto.AesGcmEncryptor
 import com.apimonitor.global.error.BusinessException
 import com.apimonitor.global.error.ErrorCode
@@ -33,6 +34,7 @@ class MonitorService(
     private val monitorRepository: MonitorRepository,
     private val monitorStateRepository: MonitorStateRepository,
     private val memberRepository: MemberRepository,
+    private val checkResultRepository: CheckResultRepository,
     private val urlSafetyValidator: UrlSafetyValidator,
     private val encryptor: AesGcmEncryptor,
     private val jsonMapper: JsonMapper,
@@ -41,8 +43,11 @@ class MonitorService(
 
     fun getMonitors(memberId: Long): MonitorListResponse {
         val monitors = monitorRepository.findAllByMemberIdOrderByIdAsc(memberId)
-        val states = monitorStateRepository.findAllById(monitors.map { it.id!! }).associateBy { it.monitorId }
-        val items = monitors.map { toResponse(it, states.getValue(it.id!!)) }
+        val ids = monitors.map { it.id!! }
+        val states = monitorStateRepository.findAllById(ids).associateBy { it.monitorId }
+        // 모든 모니터의 가동률을 쿼리 한 번으로 구한다.
+        val uptimes = checkResultRepository.uptimeSince(ids, clock.instant().minus(UPTIME_WINDOW))
+        val items = monitors.map { toResponse(it, states.getValue(it.id!!), uptimes[it.id!!]) }
         return MonitorListResponse(items = items, nextCursor = null)
     }
 
@@ -165,7 +170,10 @@ class MonitorService(
         now.plusMillis(Random.nextLong(0, FIRST_CHECK_JITTER.toMillis() + 1))
 
     private fun toResponse(monitor: Monitor, state: MonitorState): MonitorResponse =
-        MonitorResponse.of(monitor, state, decryptHeaders(monitor.requestHeadersEncrypted).map { it.name })
+        toResponse(monitor, state, checkResultRepository.uptimeSince(listOf(monitor.id!!), clock.instant().minus(UPTIME_WINDOW))[monitor.id!!])
+
+    private fun toResponse(monitor: Monitor, state: MonitorState, uptime24h: Double?): MonitorResponse =
+        MonitorResponse.of(monitor, state, decryptHeaders(monitor.requestHeadersEncrypted).map { it.name }, uptime24h)
 
     private fun validateInterval(intervalMinutes: Int): Int {
         if (intervalMinutes !in ALLOWED_INTERVALS) {
@@ -214,6 +222,7 @@ class MonitorService(
 
     companion object {
         private val ALLOWED_INTERVALS = setOf(1, 5, 10, 30, 60)
+        private val UPTIME_WINDOW: Duration = Duration.ofHours(24)
         private const val DEFAULT_TIMEOUT_SECONDS = 10
         private val FIRST_CHECK_JITTER: Duration = Duration.ofSeconds(30)
 

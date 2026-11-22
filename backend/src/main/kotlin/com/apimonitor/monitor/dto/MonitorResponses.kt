@@ -19,13 +19,13 @@ data class MonitorResponse(
     @field:Schema(description = "값은 항상 ******** 로 가려서 내려간다")
     val headers: List<HeaderResponse>,
     val state: MonitorStateResponse,
-    @field:Schema(description = "24시간 가동률(%). 집계 기능(14단계) 전까지는 null")
+    @field:Schema(description = "최근 24시간 가동률(%). 성공 ÷ (전체 - 차단). 검사 기록이 없으면 null")
     val uptime24h: Double?,
     val createdAt: Instant,
     val updatedAt: Instant,
 ) {
     companion object {
-        fun of(monitor: Monitor, state: MonitorState, headerNames: List<String>): MonitorResponse = MonitorResponse(
+        fun of(monitor: Monitor, state: MonitorState, headerNames: List<String>, uptime24h: Double?): MonitorResponse = MonitorResponse(
             id = monitor.id!!,
             name = monitor.name,
             url = monitor.url,
@@ -38,7 +38,7 @@ data class MonitorResponse(
                 .orEmpty(),
             headers = headerNames.map { HeaderResponse(it, MASKED_VALUE) },
             state = MonitorStateResponse.from(state),
-            uptime24h = null,
+            uptime24h = uptime24h,
             createdAt = monitor.createdAt,
             updatedAt = monitor.updatedAt,
         )

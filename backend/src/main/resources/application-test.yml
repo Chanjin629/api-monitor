@@ -27,6 +27,10 @@ notification:
   # 발송기 테스트는 sendDue()를 직접 호출한다.
   sender-enabled: false
 
+demo:
+  # 데모 데이터 테스트는 seed()를 직접 호출한다.
+  seed-enabled: false
+
 logging:
   level:
     org.flywaydb: warn

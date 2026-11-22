@@ -1,22 +1,27 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useMe } from '../features/auth/useMe'
+import { ResponseTimeChart } from '../features/charts/ResponseTimeChart'
+import { IncidentTable } from '../features/incidents/IncidentTable'
+import { fetchIncidents, incidentKeys } from '../features/incidents/incidentApi'
 import {
+  STATS_RANGES,
   deleteMonitor,
+  fetchChecks,
   fetchMonitor,
+  fetchStats,
   monitorKeys,
   pauseMonitor,
   resultLabel,
   resumeMonitor,
   statusDisplay,
   type Monitor,
+  type StatsRange,
 } from '../features/monitors/monitorApi'
+import { formatPercent, formatTime } from '../shared/lib/format'
 
-/**
- * S-05 모니터 상세. 이번 단계는 설정과 현재 상태, 정지·재개·수정·삭제만 다룬다.
- * 응답 시간 그래프, 장애 이력, 최근 검사 목록은 14단계에서 추가한다.
- */
+/** S-05 모니터 상세: 설정과 현재 상태, 응답 시간 그래프, 장애 이력, 최근 검사 */
 export function MonitorDetailPage() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
@@ -146,7 +151,146 @@ export function MonitorDetailPage() {
         </Item>
         <Item label="다음 검사">{state.nextCheckAt ? new Date(state.nextCheckAt).toLocaleString() : '-'}</Item>
       </dl>
+
+      <StatsSection monitorId={id} />
+      <IncidentSection monitorId={id} />
+      <CheckSection monitorId={id} />
     </section>
+  )
+}
+
+/** 가동률, 평균 응답 시간, 응답 시간 그래프. 기간 버튼으로 24시간·7일·30일을 바꾼다. */
+function StatsSection({ monitorId }: { monitorId: number }) {
+  const [range, setRange] = useState<StatsRange>('24h')
+  const { data, isPending, isError, error } = useQuery({
+    queryKey: monitorKeys.stats(monitorId, range),
+    queryFn: () => fetchStats(monitorId, range),
+    refetchInterval: 60_000,
+  })
+
+  return (
+    <div className="mt-8">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <h2 className="text-lg font-semibold">응답 시간</h2>
+        <span className="text-sm text-slate-600">
+          가동률 <strong className="text-slate-900">{formatPercent(data?.uptimePercent)}</strong>
+        </span>
+        <span className="text-sm text-slate-600">
+          평균 응답{' '}
+          <strong className="text-slate-900">{data?.averageResponseTimeMs != null ? `${data.averageResponseTimeMs}ms` : '-'}</strong>
+        </span>
+        <div role="group" aria-label="기간" className="ml-auto flex gap-1">
+          {STATS_RANGES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={range === option.value}
+              onClick={() => setRange(option.value)}
+              className={`rounded-md px-3 py-1 text-sm ${
+                range === option.value ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white hover:bg-slate-50'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-4">
+        {isPending && <div className="h-60 animate-pulse rounded bg-slate-100" />}
+        {isError && <p className="text-sm text-red-700">{error.message}</p>}
+        {data && <ResponseTimeChart points={data.points} bucketMinutes={data.bucketMinutes} />}
+        {range !== '24h' && (
+          <p className="mt-2 text-xs text-slate-500">7일·30일 그래프는 시간별 집계로 그려 최대 1시간 늦게 반영됩니다.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IncidentSection({ monitorId }: { monitorId: number }) {
+  const query = useInfiniteQuery({
+    queryKey: incidentKeys.byMonitor(monitorId),
+    queryFn: ({ pageParam }) => fetchIncidents({ monitorId, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor,
+    refetchInterval: 60_000,
+  })
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-lg font-semibold">장애 이력</h2>
+      <div className="mt-3">
+        {query.isPending && <div className="h-20 animate-pulse rounded-lg bg-slate-200" />}
+        {query.data && <IncidentTable incidents={query.data.pages.flatMap((page) => page.items)} />}
+        <MoreButton visible={query.hasNextPage} loading={query.isFetchingNextPage} onClick={() => query.fetchNextPage()} />
+      </div>
+    </div>
+  )
+}
+
+function CheckSection({ monitorId }: { monitorId: number }) {
+  const query = useInfiniteQuery({
+    queryKey: monitorKeys.checks(monitorId),
+    queryFn: ({ pageParam }) => fetchChecks(monitorId, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor,
+    refetchInterval: 60_000,
+  })
+  const checks = query.data?.pages.flatMap((page) => page.items) ?? []
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-lg font-semibold">최근 검사</h2>
+      <div className="mt-3">
+        {query.isPending && <div className="h-20 animate-pulse rounded-lg bg-slate-200" />}
+        {query.data && checks.length === 0 && (
+          <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+            첫 검사를 기다리는 중입니다
+          </p>
+        )}
+        {checks.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-4 py-2 font-medium">시각</th>
+                  <th className="px-4 py-2 font-medium">결과</th>
+                  <th className="px-4 py-2 font-medium">상태 코드</th>
+                  <th className="px-4 py-2 font-medium">응답 시간</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checks.map((check) => (
+                  <tr key={check.checkedAt} className="border-b border-slate-100 last:border-0">
+                    <td className="px-4 py-2 text-slate-600">{formatTime(check.checkedAt)}</td>
+                    <td className={`px-4 py-2 ${check.result === 'SUCCESS' ? '' : 'text-red-700'}`}>{resultLabel(check.result)}</td>
+                    <td className="px-4 py-2">{check.statusCode ?? '-'}</td>
+                    <td className="px-4 py-2">{check.responseTimeMs != null ? `${check.responseTimeMs}ms` : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <MoreButton visible={query.hasNextPage} loading={query.isFetchingNextPage} onClick={() => query.fetchNextPage()} />
+      </div>
+    </div>
+  )
+}
+
+function MoreButton({ visible, loading, onClick }: { visible: boolean; loading: boolean; onClick: () => void }) {
+  if (!visible) return null
+  return (
+    <div className="mt-3 text-center">
+      <button
+        type="button"
+        disabled={loading}
+        onClick={onClick}
+        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+      >
+        {loading ? '불러오는 중...' : '더 보기'}
+      </button>
+    </div>
   )
 }
 

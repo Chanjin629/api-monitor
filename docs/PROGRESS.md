@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 14 (대시보드 + 시간별 집계 + 데모 데이터)
+현재 단계: 15 (Actuator + Micrometer + Prometheus + Grafana)
 
 ## 로드맵
 
@@ -24,7 +24,7 @@
 - [x] 11. 주기적 API 검사 (디스패처, WebClient, 연결 시점 IP 검증)
 - [x] 12. 검사 결과 저장 + 장애 감지 및 이력 + 파티션 관리와 원본 삭제
 - [x] 13. 장애·복구 알림 (Discord Webhook)
-- [ ] 14. 대시보드 (요약, API별 상태, 응답 시간 그래프, 장애 이력) + 시간별 집계 + 데모 시드 데이터
+- [x] 14. 대시보드 (요약, API별 상태, 응답 시간 그래프, 장애 이력) + 시간별 집계 + 데모 시드 데이터
 
 ### 관측성
 - [ ] 15. Actuator + Micrometer + Prometheus + Grafana
@@ -126,3 +126,11 @@
 - 테스트 결과: Backend 197개 통과(채널 API 12, 발송기 7, Discord 클라이언트 5, 메시지 5 추가). Frontend Vitest 21개 통과, 린트·빌드 통과. 실제 Discord로 테스트 메시지, 장애 알림, 복구 알림(장애 시간 95초)이 각 1회 도착하는 것을 확인했다. 서버 로그에 Webhook 주소와 URL 쿼리가 남지 않았다.
 - 발견한 문제: 서버가 MVC로 동작해 `WebClient.Builder` 빈이 없어 Discord 클라이언트가 만들어지지 않았다. 검사 실행기처럼 WebClient를 직접 만들도록 고쳤다.
 - 남은 일: Discord가 오래 장애이면 복구 알림이 장애 알림보다 먼저 갈 수 있다(문서에 기록, 순서 강제 안 함).
+
+### 14단계: 대시보드 + 시간별 집계 + 데모 데이터 (2026-11-22, MVP 완성)
+
+- 요약: 시간별 집계 작업(매시 5분과 서버 시작 시 직전·진행 중 시간을 다시 계산, 365일 지난 집계는 매일 삭제)을 만들었다. 조회 API 5개(대시보드 요약, 응답 시간 그래프 24h·7d·30d, 검사 기록, 전체·모니터별 장애 이력)를 커서 방식으로 만들고, 모니터 목록의 `uptime24h`를 채웠다. 데모 계정에 모니터 5개와 30일치 기록·장애를 서버 시작 시와 매일 현재 시각 기준으로 다시 만든다. Frontend는 대시보드 요약 카드·최근 장애·채널 미등록 안내, 상세 화면의 Recharts 응답 시간 그래프·장애 이력·최근 검사(더 보기), 장애 이력 화면(필터, 더 보기)을 만들었다.
+- 주요 변경 파일: `backend/src/main/kotlin/com/apimonitor/{dashboard,incident}/**`, `check/scheduler/{HourlyStatsAggregator,PartitionManager}.kt`, `check/repository/{HourlyStatsRepository,CheckResultRepository}.kt`, `member/service/DemoDataSeeder.kt`, `global/response/Cursor.kt`, `monitor/service/MonitorService.kt`, `frontend/src/features/{charts,incidents}/**`, `frontend/src/shared/lib/format.ts`, `frontend/src/pages/{Dashboard,MonitorDetail,Incidents}Page.tsx`, `frontend/package.json`(recharts 3.11.0), `docs/05-api-spec.md`, `README.md`
+- 테스트 결과: Backend 211개 통과(집계 3, 대시보드 API 6, 장애 API 3, 데모 데이터 2 추가). Frontend Vitest 28개 통과, 린트·빌드 통과. 데모 계정으로 대시보드 요약(전체 5, 정상 3, 장애 1, 가동률 99.41%), 상세 화면의 24시간·7일·30일 그래프, 장애 이력, 최근 검사 더 보기, 장애 이력 필터를 확인했다. 브라우저 콘솔 오류 없음.
+- 발견한 문제: 최근 장애에 상태 코드가 없어 "HTTP 503" 대신 일반 문구가 보였다. 요약 응답에 `lastStatusCode`를 추가했다. 데모 장애를 시나리오 순서로 넣어 장애 목록의 최신순이 어긋났다. 시작 순서대로 저장하도록 고쳤다(두 수정은 테스트로 확인).
+- 남은 일: Recharts를 넣어 Frontend 번들이 500KB를 넘었다는 빌드 경고가 나온다. 배포 단계에서 그래프가 있는 화면만 따로 불러오는 코드 분할을 검토한다.

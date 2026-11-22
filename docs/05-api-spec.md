@@ -280,7 +280,7 @@ URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용�
 
 ### 4.2 GET /api/v1/monitors
 
-각 항목은 등록 응답과 같은 형식이며, 24시간 가동률이 추가된다. `uptime24h`는 시간별 집계를 구현하는 14단계 전까지 항상 `null`이다. 모니터는 최대 20개라 페이지를 나누지 않으며 `nextCursor`는 항상 `null`이다.
+각 항목은 등록 응답과 같은 형식이며, 24시간 가동률이 추가된다. `uptime24h`는 최근 24시간 원본 기록으로 계산한 `성공 ÷ (전체 - 차단)`이며, 기록이 없으면 `null`이다. 모니터는 최대 20개라 페이지를 나누지 않으며 `nextCursor`는 항상 `null`이다.
 
 ```json
 {
@@ -342,7 +342,9 @@ URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용�
 
 ### 4.7 GET /api/v1/monitors/{id}/checks
 
-쿼리: `from`, `to`, `cursor`, `limit`(기본 50, 최대 200). 기본 조회 기간은 최근 24시간이다.
+쿼리: `from`, `to`(ISO-8601 시각), `cursor`, `limit`(기본 50, 최대 200). 기본 조회 기간은 최근 24시간이고, 최신 기록부터 내려 준다.
+
+커서는 마지막 항목의 시각을 Base64로 감싼 값이다. 클라이언트는 해석하지 않고 `nextCursor`를 그대로 다음 요청의 `cursor`로 보낸다. 형식이 잘못되면 `400 VALIDATION_FAILED`(`field: cursor`)다. 장애 목록의 커서도 같은 방식이며 마지막 장애의 ID를 담는다.
 
 ```json
 {
@@ -395,6 +397,14 @@ URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용�
 
 검사가 없던 구간은 빈 값을 채우지 않는다. 그래프에서 끊어진 구간으로 보여 주기 위해서다.
 
+| range | 출처 | bucketMinutes |
+| --- | --- | --- |
+| `24h` | 원본 기록(`check_results`) | 5 |
+| `7d` | 시간별 집계(`monitor_hourly_stats`) | 60 |
+| `30d` | 시간별 집계 | 360 |
+
+시간별 집계는 매시 5분에 직전 시간과 진행 중인 시간을 다시 계산하므로, `7d`와 `30d`는 최대 1시간 늦게 반영된다. 묶음 경계는 UTC 기준이다. `uptimePercent`는 `성공 ÷ (전체 - 차단)`이고 기록이 없으면 `null`이다. 그 밖의 `range` 값은 `400 VALIDATION_FAILED`다.
+
 ## 5. 장애 API
 
 ### 5.1 GET /api/v1/incidents, /api/v1/monitors/{id}/incidents
@@ -423,7 +433,7 @@ URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용�
 }
 ```
 
-진행 중인 장애는 `status`가 `OPEN`이고 `resolvedAt`, `durationSeconds`가 `null`이다.
+진행 중인 장애는 `status`가 `OPEN`이고 `resolvedAt`, `durationSeconds`가 `null`이다. 최신 장애(ID 내림차순)부터 내려 준다. 장애는 감지한 순간 저장되므로 ID 순서가 곧 발생 순서다. 다른 회원의 모니터를 지정하면 `404 MONITOR_NOT_FOUND`다.
 
 ## 6. 대시보드 API
 
@@ -446,12 +456,15 @@ URL 검증 규칙: `http`, `https`만 허용하고, `user:pass@` 같은 사용�
         "monitor": { "id": 42, "name": "결제 API" },
         "status": "OPEN",
         "startedAt": "2026-11-09T12:00:00.000Z",
-        "cause": "TIMEOUT"
+        "cause": "TIMEOUT",
+        "lastStatusCode": null
       }
     ]
   }
 }
 ```
+
+`recentIncidents`는 진행 중인 장애와 24시간 안에 복구된 장애이며, 진행 중인 것부터 최대 5건이다. `lastStatusCode`는 원인이 `UNEXPECTED_STATUS`일 때 화면에 "HTTP 503"처럼 보여 주기 위해 함께 내려 준다. `uptime24h`는 모든 모니터의 최근 24시간 기록으로 계산하고, 기록이 없으면 `null`이다.
 
 ## 7. 알림 채널 API
 

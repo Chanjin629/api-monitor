@@ -57,6 +57,10 @@ notification:
   send-interval-ms: 5000
   sender-enabled: true
 
+demo:
+  # 데모 계정의 샘플 데이터를 서버 시작 시와 매일 현재 시각 기준으로 다시 만든다.
+  seed-enabled: true
+
 logging:
   level:
     # 고객 API의 연결 오류(인증서 오류 등)는 정상적인 검사 결과다.

@@ -48,6 +48,7 @@ cd frontend && npm install && npm run dev
 ```
 
 - 화면: http://localhost:5173 (GitHub 로그인 또는 데모 체험)
+- 데모 체험: GitHub 권한 승인 없이 읽기 전용으로 둘러볼 수 있습니다. 서버를 시작할 때와 매일 한 번, 현재 시각 기준으로 모니터 5개와 30일치 기록·장애를 다시 만듭니다. 데모 주소는 example 도메인이라 실제로 검사하지 않습니다.
 - API 문서: http://localhost:8080/swagger-ui.html (데모 로그인으로 받은 accessToken을 Authorize에 입력)
 - 환경 변수 목록은 [.env.example](.env.example)에 있습니다. 운영에서는 `JWT_SECRET`과 요청 헤더 암호화 키 `CRYPTO_SECRET`(Base64로 인코딩한 32바이트)을 반드시 지정합니다.
 
@@ -59,6 +60,8 @@ cd frontend && npm install && npm run dev
 | 회원 | `GET /api/v1/members/me`, `DELETE /api/v1/members/me` |
 | 모니터 | `GET·POST /api/v1/monitors`, `GET·PATCH·DELETE /api/v1/monitors/{id}`, `POST /api/v1/monitors/{id}/pause`, `/resume` |
 | 알림 채널 | `GET·POST /api/v1/notification-channels`, `PATCH·DELETE /api/v1/notification-channels/{id}`, `POST /api/v1/notification-channels/{id}/test` |
+| 대시보드 | `GET /api/v1/dashboard/summary`, `GET /api/v1/monitors/{id}/stats?range=24h\|7d\|30d`, `GET /api/v1/monitors/{id}/checks` |
+| 장애 이력 | `GET /api/v1/incidents`, `GET /api/v1/monitors/{id}/incidents` |
 
 - 모니터 URL은 등록·수정할 때 SSRF 검증을 거칩니다. 내부망, 루프백, 클라우드 메타데이터 주소 등은 `422 URL_BLOCKED`로 거부합니다.
 - 요청 헤더 값은 AES-GCM으로 암호화해 저장하고, 응답에서는 `********`로 가립니다.

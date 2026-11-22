@@ -47,6 +47,72 @@ export const INTERVAL_OPTIONS = [1, 5, 10, 30, 60] as const
 export const monitorKeys = {
   all: ['monitors'] as const,
   detail: (id: number) => ['monitors', id] as const,
+  stats: (id: number, range: StatsRange) => ['monitors', id, 'stats', range] as const,
+  checks: (id: number) => ['monitors', id, 'checks'] as const,
+  summary: ['dashboard', 'summary'] as const,
+}
+
+/** docs/05-api-spec.md 6.1 */
+export type Summary = {
+  totalMonitors: number
+  upCount: number
+  downCount: number
+  pausedCount: number
+  unknownCount: number
+  blockedCount: number
+  uptime24h: number | null
+  recentIncidents: {
+    id: number
+    monitor: { id: number; name: string }
+    status: 'OPEN' | 'RESOLVED'
+    startedAt: string
+    cause: string
+    lastStatusCode: number | null
+  }[]
+}
+
+export type StatsRange = '24h' | '7d' | '30d'
+
+export const STATS_RANGES: { value: StatsRange; label: string }[] = [
+  { value: '24h', label: '24시간' },
+  { value: '7d', label: '7일' },
+  { value: '30d', label: '30일' },
+]
+
+/** docs/05-api-spec.md 4.8 */
+export type Stats = {
+  range: StatsRange
+  bucketMinutes: number
+  uptimePercent: number | null
+  averageResponseTimeMs: number | null
+  points: {
+    time: string
+    averageResponseTimeMs: number | null
+    minResponseTimeMs: number | null
+    maxResponseTimeMs: number | null
+    totalCount: number
+    successCount: number
+  }[]
+}
+
+export type CheckItem = {
+  checkedAt: string
+  result: string
+  statusCode: number | null
+  responseTimeMs: number | null
+}
+
+export function fetchSummary() {
+  return apiRequest<Summary>('/dashboard/summary')
+}
+
+export function fetchStats(id: number, range: StatsRange) {
+  return apiRequest<Stats>(`/monitors/${id}/stats?range=${range}`)
+}
+
+export function fetchChecks(id: number, cursor: string | null) {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return apiRequest<{ items: CheckItem[]; nextCursor: string | null }>(`/monitors/${id}/checks${query}`)
 }
 
 export function fetchMonitors() {

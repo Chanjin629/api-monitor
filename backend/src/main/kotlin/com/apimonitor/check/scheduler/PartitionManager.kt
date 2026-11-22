@@ -3,6 +3,7 @@ package com.apimonitor.check.scheduler
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
+import org.springframework.core.annotation.Order
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -27,8 +28,9 @@ class PartitionManager(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** 서버가 꺼져 있던 사이 놓친 작업을 시작 직후에 처리한다. */
+    /** 서버가 꺼져 있던 사이 놓친 작업을 시작 직후에 처리한다. 집계와 데모 데이터 생성보다 먼저 실행한다. */
     @EventListener(ApplicationReadyEvent::class)
+    @Order(0)
     fun onStartup() = runSafely()
 
     @Scheduled(cron = "0 10 0 * * *", zone = "UTC")
