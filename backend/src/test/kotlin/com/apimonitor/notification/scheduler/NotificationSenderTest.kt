@@ -14,6 +14,7 @@ import com.apimonitor.notification.discord.DiscordSendResult
 import com.apimonitor.notification.dto.CreateChannelRequest
 import com.apimonitor.notification.dto.UpdateChannelRequest
 import com.apimonitor.notification.service.NotificationChannelService
+import io.micrometer.core.instrument.MeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -43,6 +44,7 @@ class NotificationSenderTest(
     @Autowired private val discordClient: TestDiscordClient,
     @Autowired private val jdbcTemplate: JdbcTemplate,
     @Autowired private val clock: MutableClock,
+    @Autowired private val meterRegistry: MeterRegistry,
 ) {
     private val now: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
 
@@ -55,12 +57,15 @@ class NotificationSenderTest(
     @Test
     fun `장애가 시작되면 Discord로 장애 메시지를 보내고 SENT로 바꾼다`() {
         val fixture = monitorWithChannel()
+        val sentBefore = outcomeCount("sent")
 
         startIncident(fixture.monitorId)
         sender.sendDue()
 
         val delivery = delivery(fixture.monitorId, "DOWN")
         assertThat(delivery.status).isEqualTo("SENT")
+        // 다른 테스트가 남긴 예약도 함께 처리될 수 있어 증가량으로 확인한다.
+        assertThat(outcomeCount("sent") - sentBefore).isGreaterThanOrEqualTo(1.0)
         assertThat(delivery.attemptCount).isEqualTo(1)
         val message = discordClient.messagesTo(fixture.webhookUrl).single()
         assertThat(message).contains("🔴 장애 감지: 알림 테스트", "https://public.example/health", "원인: 시간 초과")
@@ -176,6 +181,9 @@ class NotificationSenderTest(
         sender.sendDue()
         assertThat(discordClient.messagesTo(fixture.webhookUrl)).hasSize(1)
     }
+
+    private fun outcomeCount(outcome: String): Double =
+        meterRegistry.get("apimonitor.notification.deliveries").tag("outcome", outcome).counter().count()
 
     private data class Fixture(val memberId: Long, val monitorId: Long, val channelId: Long, val webhookUrl: String)
 

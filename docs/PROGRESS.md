@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 15 (Actuator + Micrometer + Prometheus + Grafana)
+현재 단계: 16 (Grafana Alloy + Loki)
 
 ## 로드맵
 
@@ -27,7 +27,7 @@
 - [x] 14. 대시보드 (요약, API별 상태, 응답 시간 그래프, 장애 이력) + 시간별 집계 + 데모 시드 데이터
 
 ### 관측성
-- [ ] 15. Actuator + Micrometer + Prometheus + Grafana
+- [x] 15. Actuator + Micrometer + Prometheus + Grafana
 - [ ] 16. Grafana Alloy + Loki
 - [ ] 16-1. 부하 테스트 (k6, Redis·Kafka 도입 판단 근거 측정)
 
@@ -134,3 +134,11 @@
 - 테스트 결과: Backend 211개 통과(집계 3, 대시보드 API 6, 장애 API 3, 데모 데이터 2 추가). Frontend Vitest 28개 통과, 린트·빌드 통과. 데모 계정으로 대시보드 요약(전체 5, 정상 3, 장애 1, 가동률 99.41%), 상세 화면의 24시간·7일·30일 그래프, 장애 이력, 최근 검사 더 보기, 장애 이력 필터를 확인했다. 브라우저 콘솔 오류 없음.
 - 발견한 문제: 최근 장애에 상태 코드가 없어 "HTTP 503" 대신 일반 문구가 보였다. 요약 응답에 `lastStatusCode`를 추가했다. 데모 장애를 시나리오 순서로 넣어 장애 목록의 최신순이 어긋났다. 시작 순서대로 저장하도록 고쳤다(두 수정은 테스트로 확인).
 - 남은 일: Recharts를 넣어 Frontend 번들이 500KB를 넘었다는 빌드 경고가 나온다. 배포 단계에서 그래프가 있는 화면만 따로 불러오는 코드 분할을 검토한다.
+
+### 15단계: Actuator + Micrometer + Prometheus + Grafana (2026-11-23)
+
+- 요약: Actuator를 앱 포트와 다른 관리 포트(8081)에서만 열고 `health`, `info`, `prometheus`만 노출했다. 자동 메트릭(API 요청, JVM, DB 연결 풀)에 더해 디스패치 지연, 결과별 검사 수, 검사 시간, 실행 중인 검사 수, 결과 저장 실패, 알림 발송 결과, 주기 작업 실패 메트릭을 직접 기록했다. 모니터 ID와 URL은 태그에 넣지 않는다. API 응답 시간과 디스패치 지연은 p95 계산용 히스토그램으로 내보낸다. 개발용 Prometheus(v3.16.0)와 Grafana(13.3.1)를 `observability` 프로필로 추가하고, 데이터 소스와 "API Monitor 서버" 대시보드를 자동 등록했다.
+- 주요 변경 파일: `backend/build.gradle.kts`, `application{,-test}.yml`, `global/security/SecurityConfig.kt`, `check/executor/WebClientCheckExecutor.kt`, `check/scheduler/{CheckDispatcher,PartitionManager,HourlyStatsAggregator}.kt`, `check/repository/CheckTargetRepository.kt`, `notification/scheduler/NotificationSender.kt`, `member/service/DemoDataSeeder.kt`, `infra/{prometheus,grafana}/**`, `infra/docker-compose.dev.yml`, `.env.example`, `docs/02-architecture.md`, `README.md`
+- 테스트 결과: Backend 216개 통과(Actuator 3, 검사 메트릭 1, 디스패치 지연 1 추가, 발송기 테스트에 메트릭 확인 추가). 개발 서버에서 관리 포트만 열리는 것(8080은 404, 8081 `env`는 401), Prometheus 수집 대상 UP, Grafana 대시보드의 API 요청 수·p95(약 55ms), 검사 수, 디스패치 지연 p95(약 2.8초), JVM·DB 연결 그래프를 확인했다.
+- 발견한 문제: 주기 작업 실패 메트릭의 `job` 태그가 Prometheus가 붙이는 수집 작업 이름 `job`과 겹쳐 `exported_job`으로 바뀌었다. 태그 이름을 `task`로 바꿨다(테스트로 확인, 이전 서버를 끄지 못해 화면 재확인은 못 함). 테스트에서는 Spring Boot가 메트릭 내보내기를 기본으로 꺼서 Prometheus 내보내기를 명시적으로 켰다.
+- 남은 일: 운영용 Grafana 로그인과 Prometheus 수집 대상은 20단계(전체 Docker Compose)에서 정한다. 개발 중 관리 포트(8081)는 PC의 모든 네트워크 주소에서 열리므로 공용 네트워크에서는 방화벽을 켜 둔다.

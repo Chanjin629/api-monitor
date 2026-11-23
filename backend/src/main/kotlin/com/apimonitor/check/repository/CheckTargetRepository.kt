@@ -23,7 +23,7 @@ class CheckTargetRepository(
     fun findDueForUpdate(now: Instant, limit: Int): List<DueTarget> =
         jdbcTemplate.query(
             """
-            SELECT s.monitor_id, m.url, m.http_method, m.interval_minutes, m.timeout_seconds,
+            SELECT s.monitor_id, s.next_check_at, m.url, m.http_method, m.interval_minutes, m.timeout_seconds,
                    m.expected_status_codes, m.request_headers_encrypted
             FROM monitor_states s
             JOIN monitors m ON m.id = s.monitor_id
@@ -35,6 +35,7 @@ class CheckTargetRepository(
             { rs, _ ->
                 DueTarget(
                     monitorId = rs.getLong("monitor_id"),
+                    scheduledAt = rs.getObject("next_check_at", LocalDateTime::class.java).toInstant(ZoneOffset.UTC),
                     url = rs.getString("url"),
                     httpMethod = rs.getString("http_method"),
                     intervalMinutes = rs.getInt("interval_minutes"),
@@ -62,6 +63,8 @@ class CheckTargetRepository(
 /** 선점한 검사 대상. 헤더는 아직 암호화된 상태다. */
 data class DueTarget(
     val monitorId: Long,
+    /** 원래 검사하기로 한 시각. 실제 선점 시각과의 차이가 디스패치 지연이다 */
+    val scheduledAt: Instant,
     val url: String,
     val httpMethod: String,
     val intervalMinutes: Int,

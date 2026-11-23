@@ -10,6 +10,8 @@ import com.apimonitor.member.service.MemberService
 import com.apimonitor.monitor.dto.CreateMonitorRequest
 import com.apimonitor.monitor.dto.HeaderRequest
 import com.apimonitor.monitor.service.MonitorService
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -113,7 +115,7 @@ class CheckDispatcherTest(
         assertThat(elapsedMs).isLessThan(3000)
     }
 
-    private fun dispatcherWith(executor: CheckExecutor) = CheckDispatcher(
+    private fun dispatcherWith(executor: CheckExecutor, registry: MeterRegistry = SimpleMeterRegistry()) = CheckDispatcher(
         checkTargetRepository = checkTargetRepository,
         checkExecutor = executor,
         transactionTemplate = transactionTemplate,
@@ -121,7 +123,22 @@ class CheckDispatcherTest(
         jsonMapper = jsonMapper,
         properties = CheckProperties(),
         clock = Clock.fixed(now, ZoneOffset.UTC),
+        meterRegistry = registry,
     )
+
+    @Test
+    fun `예정 시각보다 늦게 가져간 만큼 디스패치 지연으로 기록한다`() {
+        val due = createMonitor(newMember())
+        setNextCheckAt(due, now.minusSeconds(40))
+        val registry = SimpleMeterRegistry()
+
+        dispatcherWith(RecordingExecutor(), registry).dispatch()
+
+        val delay = registry.get("apimonitor.check.dispatch.delay").timer()
+        assertThat(delay.count()).isGreaterThanOrEqualTo(1)
+        // 이 테스트의 모니터는 40초 늦었다. 다른 테스트가 남긴 모니터도 함께 가져갈 수 있어 최대값으로 확인한다.
+        assertThat(delay.max(java.util.concurrent.TimeUnit.SECONDS)).isGreaterThanOrEqualTo(40.0)
+    }
 
     private fun newMember(): Long {
         val id = System.nanoTime().toString()

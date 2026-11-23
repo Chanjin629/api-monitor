@@ -1,5 +1,7 @@
 package com.apimonitor.check.scheduler
 
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
@@ -25,7 +27,13 @@ import java.time.format.DateTimeFormatter
 class PartitionManager(
     private val jdbcTemplate: JdbcTemplate,
     private val clock: Clock,
+    meterRegistry: MeterRegistry,
 ) {
+    private val failures = Counter.builder("apimonitor.scheduled.job.failures")
+        .description("주기 작업이 예외로 실패한 횟수")
+        .tag("task", "partition_maintenance")
+        .register(meterRegistry)
+
     private val log = LoggerFactory.getLogger(javaClass)
 
     /** 서버가 꺼져 있던 사이 놓친 작업을 시작 직후에 처리한다. 집계와 데모 데이터 생성보다 먼저 실행한다. */
@@ -41,6 +49,7 @@ class PartitionManager(
             maintain(LocalDate.now(clock.withZone(ZoneOffset.UTC)))
         } catch (e: Exception) {
             // 미리 만든 3일치와 p_future가 있어 저장은 계속된다. 다음 실행에서 다시 시도한다.
+            failures.increment()
             log.error("check_results partition maintenance failed", e)
         }
     }

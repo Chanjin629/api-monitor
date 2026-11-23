@@ -9,6 +9,10 @@ import com.apimonitor.global.error.BusinessException
 import com.apimonitor.global.ssrf.BlockedAddressException
 import com.apimonitor.global.ssrf.SafeAddressResolver
 import com.apimonitor.global.ssrf.UrlSafetyValidator
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.Gauge
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import io.netty.channel.ConnectTimeoutException
 import io.netty.handler.timeout.ReadTimeoutException
 import jakarta.annotation.PreDestroy
@@ -40,6 +44,7 @@ import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.UnknownHostException
 import java.time.Clock
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLException
 
 /**
@@ -56,11 +61,32 @@ class WebClientCheckExecutor(
     private val resultProcessor: CheckResultProcessor,
     properties: CheckProperties,
     private val clock: Clock,
+    private val meterRegistry: MeterRegistry,
 ) : CheckExecutor {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val semaphore = Semaphore(properties.maxConcurrency)
+
+    // 우리 서버의 처리 현황만 기록한다. 모니터 ID나 URL은 태그에 넣지 않는다 (고객 검사 이력은 DB에만 둔다).
+    private val checkDuration: Timer = Timer.builder("apimonitor.check.duration")
+        .description("검사 한 번에 걸린 시간 (DNS 조회부터 응답 헤더 수신까지)")
+        .register(meterRegistry)
+    private val saveFailures: Counter = Counter.builder("apimonitor.check.result_save_failures")
+        .description("3번 시도해도 DB에 저장하지 못해 버린 검사 결과 수")
+        .register(meterRegistry)
+
+    init {
+        CheckResultType.entries.forEach { executions(it) }
+        Gauge.builder("apimonitor.check.in_flight") { properties.maxConcurrency - semaphore.availablePermits }
+            .description("지금 실행 중인 검사 수")
+            .register(meterRegistry)
+    }
+
+    private fun executions(type: CheckResultType): Counter = Counter.builder("apimonitor.check.executions")
+        .description("결과 종류별 검사 수")
+        .tag("result", type.name)
+        .register(meterRegistry)
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Default + CoroutineName("check") +
             CoroutineExceptionHandler { _, e -> log.error("Check coroutine failed", e) },
@@ -90,6 +116,14 @@ class WebClientCheckExecutor(
 
     /** 검사 한 번을 실행하고 결과를 돌려준다. 예외를 던지지 않고 모든 실패를 결과 종류로 바꾼다. */
     suspend fun check(command: CheckCommand): CheckResult {
+        val startedAt = System.nanoTime()
+        val result = runCheck(command)
+        checkDuration.record(System.nanoTime() - startedAt, TimeUnit.NANOSECONDS)
+        executions(result.type).increment()
+        return result
+    }
+
+    private suspend fun runCheck(command: CheckCommand): CheckResult {
         val checkedAt = clock.instant()
         fun result(type: CheckResultType, statusCode: Int? = null, responseTimeMs: Int? = null) =
             CheckResult(command.monitorId, checkedAt, type, statusCode, responseTimeMs)
@@ -160,6 +194,7 @@ class WebClientCheckExecutor(
                 return
             } catch (e: Exception) {
                 if (attempt == SAVE_ATTEMPTS - 1) {
+                    saveFailures.increment()
                     log.error("Failed to save check result monitorId={}", result.monitorId, e)
                 } else {
                     delay(SAVE_RETRY_DELAY_MS * (attempt + 1))

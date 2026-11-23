@@ -18,6 +18,8 @@ import com.github.tomakehurst.wiremock.client.WireMock.head
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.github.tomakehurst.wiremock.http.Fault
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
@@ -210,11 +212,32 @@ class WebClientCheckExecutorTest {
         headers = headers,
     )
 
-    private fun executorWith(resolver: SafeAddressResolver) = WebClientCheckExecutor(
+    private fun executorWith(resolver: SafeAddressResolver, registry: MeterRegistry = SimpleMeterRegistry()) = WebClientCheckExecutor(
         safeAddressResolver = resolver,
         urlSafetyValidator = UrlSafetyValidator(fakeDns),
         resultProcessor = mockk<CheckResultProcessor>(relaxed = true),
         properties = CheckProperties(),
         clock = Clock.systemUTC(),
+        meterRegistry = registry,
     )
+
+    @Test
+    fun `검사할 때마다 결과 종류별 횟수와 걸린 시간을 메트릭으로 남긴다`() {
+        server.stubFor(get("/health").willReturn(aResponse().withStatus(200)))
+        server.stubFor(get("/down").willReturn(aResponse().withStatus(500)))
+        val registry = SimpleMeterRegistry()
+        val measured = executorWith(SafeAddressResolver(fakeDns) { false }, registry)
+
+        runBlocking {
+            measured.check(command("/health"))
+            measured.check(command("/health"))
+            measured.check(command("/down"))
+        }
+
+        assertThat(registry.get("apimonitor.check.executions").tag("result", "SUCCESS").counter().count()).isEqualTo(2.0)
+        assertThat(registry.get("apimonitor.check.executions").tag("result", "UNEXPECTED_STATUS").counter().count()).isEqualTo(1.0)
+        assertThat(registry.get("apimonitor.check.executions").tag("result", "TIMEOUT").counter().count()).isZero()
+        assertThat(registry.get("apimonitor.check.duration").timer().count()).isEqualTo(3)
+        assertThat(registry.get("apimonitor.check.in_flight").gauge().value()).isZero()
+    }
 }

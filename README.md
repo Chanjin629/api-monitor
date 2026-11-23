@@ -68,6 +68,18 @@ cd frontend && npm install && npm run dev
 - 장애가 시작되거나 복구되면 등록한 Discord Webhook으로 한 번씩 알립니다. Webhook 주소도 암호화해 저장하고 끝 4자리만 보여 줍니다.
 - 자세한 요청·응답 형식은 [API 명세](docs/05-api-spec.md)와 Swagger UI를 참고하세요.
 
+## 서버 메트릭 보기 (Prometheus, Grafana)
+
+```bash
+# 앱을 실행한 상태에서 Prometheus와 Grafana를 함께 띄운다
+docker compose -f infra/docker-compose.dev.yml --profile observability up -d
+```
+
+- Grafana: http://localhost:3000 ("API Monitor 서버" 대시보드가 첫 화면으로 열립니다. 개발용이라 로그인 없이 보기 권한으로 열립니다)
+- Prometheus: http://localhost:9090
+- 앱의 Actuator는 관리 포트 8081에서만 열립니다 (`/actuator/health`, `/actuator/prometheus`). 8080으로는 접근할 수 없습니다.
+- 우리 서버 자체의 메트릭만 수집합니다. 고객 API의 검사 이력은 서비스 화면에서 봅니다.
+
 ## 테스트
 
 ```bash

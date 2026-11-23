@@ -1,0 +1,12 @@
+# 우리 서버(api-monitor) 자체의 메트릭만 수집한다. 고객 API 검사 이력은 MariaDB에 있고 여기에 넣지 않는다.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: api-monitor
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # 개발 중에는 앱이 PC에서 실행되므로 Docker 안에서 PC를 가리키는 host.docker.internal로 접근한다.
+      # 8081은 Actuator 전용 관리 포트다. 배포 단계(20단계)에서는 같은 Docker 네트워크의 앱 컨테이너를 가리킨다.
+      - targets: ["host.docker.internal:8081"]

@@ -61,7 +61,23 @@ flowchart LR
 
 **리버스 프록시**는 외부 요청을 먼저 받아 내부 서버로 전달하는 서버다. **CORS**는 다른 도메인의 페이지가 API를 호출할 때 브라우저가 적용하는 제한이다. **메트릭**은 요청 수, 메모리 사용량 같은 수치 데이터다.
 
-`/actuator`는 Caddy를 통해 외부에 노출하지 않고 컨테이너 내부 네트워크에서만 접근한다.
+`/actuator`는 Caddy를 통해 외부에 노출하지 않고 컨테이너 내부 네트워크에서만 접근한다. 이를 위해 Actuator는 앱 포트(8080)와 다른 관리 포트(8081)에서만 열고, `health`, `info`, `prometheus` 세 엔드포인트만 노출한다.
+
+### 1.1 서버 메트릭 (15단계에서 확정)
+
+Spring Boot가 자동으로 모으는 API 요청(`http_server_requests`), JVM, DB 연결 풀(`hikaricp`) 메트릭에 더해 아래 메트릭을 직접 기록한다. 모두 우리 서버의 처리 현황이며, 모니터 ID나 고객 URL은 태그에 넣지 않는다. 고객 검사 이력과 섞지 않고, 모니터 수에 따라 메트릭 종류가 끝없이 늘어나는 것도 막기 위해서다.
+
+| 메트릭 | 종류 | 쓰임 |
+| --- | --- | --- |
+| `apimonitor.check.dispatch.delay` | 타이머(히스토그램) | 예정 시각부터 디스패처가 가져갈 때까지. N-P3 p95 5초 확인 |
+| `apimonitor.check.executions` (`result`) | 카운터 | 결과 종류별 검사 수. N-P1 처리량 확인 |
+| `apimonitor.check.duration` | 타이머(히스토그램) | 검사 한 번에 걸린 시간 |
+| `apimonitor.check.in_flight` | 게이지 | 실행 중인 검사 수. N-P2 한도 200 대비 |
+| `apimonitor.check.result_save_failures` | 카운터 | 3번 시도해도 저장하지 못한 검사 결과 수 (DB 장애 신호) |
+| `apimonitor.notification.deliveries` (`outcome`) | 카운터 | 알림 발송 결과: sent, retry, failed |
+| `apimonitor.scheduled.job.failures` (`task`) | 카운터 | 디스패처, 발송기, 파티션, 집계, 데모 데이터 작업의 실패 수 |
+
+API 응답 시간과 디스패치 지연은 Prometheus가 p95를 계산할 수 있게 히스토그램으로 내보낸다. 고객 API를 호출하는 WebClient는 직접 만들어 쓰므로 호출 URL별 자동 메트릭이 붙지 않는다. 개발용 Prometheus·Grafana 설정은 `infra/`에 있고, Grafana 대시보드는 시작할 때 자동으로 등록된다.
 
 ## 2. 로그인 흐름
 

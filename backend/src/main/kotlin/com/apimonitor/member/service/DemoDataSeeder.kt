@@ -3,6 +3,8 @@ package com.apimonitor.member.service
 import com.apimonitor.check.repository.HourlyStatsRepository
 import com.apimonitor.member.domain.AuthProvider
 import com.apimonitor.member.repository.MemberRepository
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -45,7 +47,13 @@ class DemoDataSeeder(
     private val transactionTemplate: TransactionTemplate,
     private val properties: DemoProperties,
     private val clock: Clock,
+    meterRegistry: MeterRegistry,
 ) {
+    private val failures = Counter.builder("apimonitor.scheduled.job.failures")
+        .description("주기 작업이 예외로 실패한 횟수")
+        .tag("task", "demo_seed")
+        .register(meterRegistry)
+
     private val log = LoggerFactory.getLogger(javaClass)
 
     // 파티션 준비와 시간별 집계 뒤에 실행한다.
@@ -62,6 +70,7 @@ class DemoDataSeeder(
             seed(clock.instant())
         } catch (e: Exception) {
             // 데모 화면이 하루 묵을 뿐 서비스에는 영향이 없다. 다음 실행에서 다시 만든다.
+            failures.increment()
             log.error("Demo data seeding failed", e)
         }
     }

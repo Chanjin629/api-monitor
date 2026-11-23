@@ -63,6 +63,9 @@ class SecurityConfig(
             }
             .authorizeHttpRequests {
                 it.requestMatchers("/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // 상태 확인과 메트릭 수집용. 관리 포트(8081)에서만 열리고 Caddy가 외부에 연결하지 않는다.
+                it.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/prometheus")
+                    .permitAll()
                 it.requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh", "/api/v1/auth/logout", "/api/v1/auth/demo")
                     .permitAll()
                 // 조회는 로그인한 모든 사용자, 변경은 일반 회원만 할 수 있다. 데모 계정의 변경 요청은 403이 된다.

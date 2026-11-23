@@ -7,6 +7,8 @@ import com.apimonitor.notification.discord.DiscordWebhookClient
 import com.apimonitor.notification.repository.DueDelivery
 import com.apimonitor.notification.repository.NotificationDeliveryRepository
 import com.apimonitor.notification.repository.NotificationEventType
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.scheduling.annotation.Scheduled
@@ -41,8 +43,22 @@ class NotificationSender(
     private val transactionTemplate: TransactionTemplate,
     private val properties: NotificationProperties,
     private val clock: Clock,
+    private val meterRegistry: MeterRegistry,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private fun outcome(name: String) = Counter.builder("apimonitor.notification.deliveries")
+        .description("알림 발송 시도 결과. sent: 성공, retry: 재시도 예약, failed: 포기")
+        .tag("outcome", name)
+        .register(meterRegistry)
+
+    private val sent = outcome("sent")
+    private val retried = outcome("retry")
+    private val failed = outcome("failed")
+    private val jobFailures = Counter.builder("apimonitor.scheduled.job.failures")
+        .description("주기 작업이 예외로 실패한 횟수")
+        .tag("task", "notification_sender")
+        .register(meterRegistry)
 
     @Scheduled(fixedDelayString = "\${notification.send-interval-ms:5000}", initialDelayString = "\${notification.send-interval-ms:5000}")
     fun scheduledSend() {
@@ -51,6 +67,7 @@ class NotificationSender(
             sendDue()
         } catch (e: Exception) {
             // DB 일시 장애 등. 예약은 DB에 남아 있으므로 다음 주기에 다시 시도한다.
+            jobFailures.increment()
             log.error("Notification send failed", e)
         }
     }
@@ -69,6 +86,7 @@ class NotificationSender(
         // 예약한 뒤 사용자가 채널을 껐다.
         if (!delivery.channelEnabled) {
             deliveryRepository.markFailed(delivery.id, delivery.attemptCount, "CHANNEL_DISABLED")
+            failed.increment()
             return
         }
 
@@ -81,11 +99,15 @@ class NotificationSender(
 
         val now = clock.instant()
         when (result) {
-            DiscordSendResult.Sent -> deliveryRepository.markSent(delivery.id, attempts, now)
+            DiscordSendResult.Sent -> {
+                deliveryRepository.markSent(delivery.id, attempts, now)
+                sent.increment()
+            }
             is DiscordSendResult.RateLimited -> retryOrFail(delivery.id, attempts, now.plus(result.retryAfter), "RATE_LIMITED")
             is DiscordSendResult.Failed ->
                 if (result.permanent) {
                     deliveryRepository.markFailed(delivery.id, attempts, result.errorCode)
+                    failed.increment()
                 } else {
                     retryOrFail(delivery.id, attempts, now.plus(backoff(attempts)), result.errorCode)
                 }
@@ -98,8 +120,10 @@ class NotificationSender(
     private fun retryOrFail(id: Long, attempts: Int, nextAttemptAt: java.time.Instant, errorCode: String) {
         if (attempts >= MAX_ATTEMPTS) {
             deliveryRepository.markFailed(id, attempts, errorCode)
+            failed.increment()
         } else {
             deliveryRepository.markRetry(id, attempts, nextAttemptAt, errorCode)
+            retried.increment()
         }
     }
 

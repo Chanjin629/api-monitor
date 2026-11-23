@@ -27,6 +27,16 @@ notification:
   # 발송기 테스트는 sendDue()를 직접 호출한다.
   sender-enabled: false
 
+management:
+  server:
+    # 테스트(MockMvc)는 실제 포트를 열지 않으므로, 관리 엔드포인트를 앱과 같은 곳에 두어 확인한다.
+    port: 8080
+  prometheus:
+    metrics:
+      export:
+        # Spring Boot는 테스트에서 메트릭 내보내기를 기본으로 끈다. /actuator/prometheus를 확인하려고 켠다.
+        enabled: true
+
 demo:
   # 데모 데이터 테스트는 seed()를 직접 호출한다.
   seed-enabled: false

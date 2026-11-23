@@ -1,6 +1,8 @@
 package com.apimonitor.check.scheduler
 
 import com.apimonitor.check.repository.HourlyStatsRepository
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
@@ -23,7 +25,13 @@ import java.time.temporal.ChronoUnit
 class HourlyStatsAggregator(
     private val hourlyStatsRepository: HourlyStatsRepository,
     private val clock: Clock,
+    meterRegistry: MeterRegistry,
 ) {
+    private val failures = Counter.builder("apimonitor.scheduled.job.failures")
+        .description("주기 작업이 예외로 실패한 횟수")
+        .tag("task", "hourly_stats")
+        .register(meterRegistry)
+
     private val log = LoggerFactory.getLogger(javaClass)
 
     // 파티션 준비(PartitionManager) 뒤, 데모 데이터 생성 전에 실행한다.
@@ -50,6 +58,7 @@ class HourlyStatsAggregator(
             action()
         } catch (e: Exception) {
             // 다음 실행에서 같은 구간을 다시 계산하므로 한 번 실패해도 값이 복구된다.
+            failures.increment()
             log.error("Hourly stats job failed", e)
         }
     }

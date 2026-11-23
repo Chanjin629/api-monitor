@@ -5,6 +5,9 @@ import com.apimonitor.check.executor.CheckExecutor
 import com.apimonitor.check.repository.CheckTargetRepository
 import com.apimonitor.check.repository.DueTarget
 import com.apimonitor.global.crypto.AesGcmEncryptor
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.scheduling.annotation.Scheduled
@@ -42,8 +45,18 @@ class CheckDispatcher(
     private val jsonMapper: JsonMapper,
     private val properties: CheckProperties,
     private val clock: Clock,
+    private val meterRegistry: MeterRegistry,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private val dispatchDelay: Timer = Timer.builder("apimonitor.check.dispatch.delay")
+        .description("검사 예정 시각부터 디스패처가 가져갈 때까지 걸린 시간")
+        .register(meterRegistry)
+
+    private val failures = Counter.builder("apimonitor.scheduled.job.failures")
+        .description("주기 작업이 예외로 실패한 횟수")
+        .tag("task", "check_dispatcher")
+        .register(meterRegistry)
 
     // 이전 실행이 끝난 뒤 5초를 쉰다. 실행이 길어져도 겹치지 않는다.
     @Scheduled(fixedDelayString = "\${check.dispatch-interval-ms:5000}", initialDelayString = "\${check.dispatch-interval-ms:5000}")
@@ -53,6 +66,7 @@ class CheckDispatcher(
             dispatch()
         } catch (e: Exception) {
             // DB 일시 장애 등. 다음 주기에 다시 시도한다.
+            failures.increment()
             log.error("Check dispatch failed", e)
         }
     }
@@ -71,6 +85,8 @@ class CheckDispatcher(
         }.orEmpty()
 
         targets.forEach { target ->
+            // 예정 시각보다 얼마나 늦게 가져갔는지. 실행기에 빈자리가 없어 밀리면 이 값이 커진다. (N-P3)
+            dispatchDelay.record(Duration.between(target.scheduledAt, now).coerceAtLeast(Duration.ZERO))
             val command = try {
                 toCommand(target)
             } catch (e: Exception) {

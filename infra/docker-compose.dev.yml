@@ -28,5 +28,44 @@ services:
       timeout: 5s
       retries: 12
 
+  # 관측성 도구는 필요할 때만 띄운다.
+  # 실행: docker compose -f infra/docker-compose.dev.yml --profile observability up -d
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    container_name: api-monitor-prometheus
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      # PC에서 실행 중인 앱(관리 포트 8081)에 접근하기 위한 주소
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    container_name: api-monitor-grafana
+    profiles: [observability]
+    depends_on:
+      - prometheus
+    environment:
+      # 개발용: 같은 PC(127.0.0.1)에서만 열리므로 로그인 없이 보기 권한으로 연다. 운영 설정은 20단계에서 정한다.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin_local}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/api-monitor.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+
 volumes:
   mariadb-data:
+  prometheus-data:
+  grafana-data:
