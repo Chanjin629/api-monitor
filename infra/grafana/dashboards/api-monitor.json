@@ -7,7 +7,19 @@
   "refresh": "30s",
   "schemaVersion": 39,
   "time": { "from": "now-1h", "to": "now" },
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "traceId",
+        "label": "traceId",
+        "description": "오류 응답에 나온 traceId를 넣으면 그 요청의 로그만 보여 준다.",
+        "query": "",
+        "current": { "text": "", "value": "" },
+        "hide": 0
+      }
+    ]
+  },
   "annotations": { "list": [] },
   "panels": [
     {
@@ -206,6 +218,42 @@
           "refId": "C",
           "expr": "sum(hikaricp_connections_pending{application=\"api-monitor\"})",
           "legendFormat": "연결을 기다리는 요청"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "로그",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "최근 오류·경고 로그",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 37 },
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{app=\"api-monitor\", level=~\"ERROR|WARN\"} | json | line_format \"{{.logger_name}} - {{.message}} {{.stack_trace}}\""
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "traceId로 찾기",
+      "description": "위쪽 traceId 칸이 비어 있으면 API 요청에서 나온 로그를 모두 보여 준다.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 37 },
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{app=\"api-monitor\"} | traceId!=\"\" | traceId=~\"${traceId:regex}.*\" | json | line_format \"{{.logger_name}} - {{.message}} {{.stack_trace}}\""
         }
       ]
     }

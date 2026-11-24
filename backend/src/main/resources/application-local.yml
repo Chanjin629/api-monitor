@@ -16,3 +16,13 @@ auth:
 crypto:
   # 로컬 개발 전용 키. 운영에서는 CRYPTO_SECRET 환경 변수를 쓴다.
   secret: ${CRYPTO_SECRET:JQzQP0ee2rTUBZShO+OpCE+lM8o7ybpk0BT3otKOkVY=}
+
+logging:
+  file:
+    # bootRun은 backend/에서 실행되므로 backend/logs/에 쓴다. Alloy 컨테이너가 이 폴더를 읽는다.
+    name: logs/api-monitor.log
+  logback:
+    rollingpolicy:
+      # 10MB마다 새 파일로 나누고 7일 지난 파일은 지운다.
+      max-file-size: 10MB
+      max-history: 7

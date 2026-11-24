@@ -69,7 +69,7 @@ class GlobalExceptionHandler {
     /** 처리하지 못한 예외. 원인은 로그에만 남긴다. */
     @ExceptionHandler(Exception::class)
     fun handleUnexpected(e: Exception): ResponseEntity<ErrorResponse> {
-        val traceId = newTraceId()
+        val traceId = currentTraceId()
         log.error("Unhandled exception traceId={}", traceId, e)
         return respond(ErrorCode.INTERNAL_ERROR, traceId = traceId)
     }
@@ -78,7 +78,7 @@ class GlobalExceptionHandler {
         errorCode: ErrorCode,
         message: String = errorCode.message,
         details: List<ErrorDetail> = emptyList(),
-        traceId: String = newTraceId(),
+        traceId: String = currentTraceId(),
     ): ResponseEntity<ErrorResponse> {
         if (!errorCode.status.is5xxServerError) {
             log.info("Request failed code={} traceId={}", errorCode, traceId)
@@ -87,7 +87,7 @@ class GlobalExceptionHandler {
             .body(ErrorResponse.of(errorCode, message, details, traceId))
     }
 
-    private fun newTraceId(): String = TraceIds.newId()
+    private fun currentTraceId(): String = TraceIds.current()
 
     companion object {
         private const val INVALID_VALUE = "올바르지 않은 값입니다."

@@ -68,10 +68,10 @@ cd frontend && npm install && npm run dev
 - 장애가 시작되거나 복구되면 등록한 Discord Webhook으로 한 번씩 알립니다. Webhook 주소도 암호화해 저장하고 끝 4자리만 보여 줍니다.
 - 자세한 요청·응답 형식은 [API 명세](docs/05-api-spec.md)와 Swagger UI를 참고하세요.
 
-## 서버 메트릭 보기 (Prometheus, Grafana)
+## 서버 메트릭과 로그 보기 (Prometheus, Grafana, Loki)
 
 ```bash
-# 앱을 실행한 상태에서 Prometheus와 Grafana를 함께 띄운다
+# 앱을 실행한 상태에서 Prometheus, Grafana, Loki, Alloy를 함께 띄운다
 docker compose -f infra/docker-compose.dev.yml --profile observability up -d
 ```
 
@@ -79,6 +79,9 @@ docker compose -f infra/docker-compose.dev.yml --profile observability up -d
 - Prometheus: http://localhost:9090
 - 앱의 Actuator는 관리 포트 8081에서만 열립니다 (`/actuator/health`, `/actuator/prometheus`). 8080으로는 접근할 수 없습니다.
 - 우리 서버 자체의 메트릭만 수집합니다. 고객 API의 검사 이력은 서비스 화면에서 봅니다.
+- 로그: local 프로필로 실행하면 앱이 `backend/logs/api-monitor.log`에 JSON 로그를 쓰고, Alloy가 읽어 Loki로 보냅니다. 대시보드 아래쪽 "로그" 행에서 최근 오류·경고를 봅니다.
+- traceId로 찾기: API 오류 응답의 `error.traceId` 값을 대시보드 위쪽 `traceId` 칸에 넣으면 그 요청의 로그만 보입니다.
+- Alloy 수집 상태: http://localhost:12345
 
 ## 테스트
 

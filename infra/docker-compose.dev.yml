@@ -52,6 +52,7 @@ services:
     profiles: [observability]
     depends_on:
       - prometheus
+      - loki
     environment:
       # 개발용: 같은 PC(127.0.0.1)에서만 열리므로 로그인 없이 보기 권한으로 연다. 운영 설정은 20단계에서 정한다.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
@@ -65,7 +66,38 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
 
+  # 로그 저장과 검색. Grafana가 내부 네트워크로만 접근하므로 포트를 PC에 열지 않는다.
+  loki:
+    image: grafana/loki:3.7.10
+    container_name: api-monitor-loki
+    profiles: [observability]
+    command:
+      - -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+
+  # 로그 수집. PC에서 실행 중인 앱이 쓰는 backend/logs/를 읽기 전용으로 읽어 Loki로 보낸다.
+  alloy:
+    image: grafana/alloy:v1.22.0
+    container_name: api-monitor-alloy
+    profiles: [observability]
+    depends_on:
+      - loki
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../backend/logs:/var/log/api-monitor:ro
+    ports:
+      # 수집 상태를 확인하는 Alloy 화면
+      - "127.0.0.1:12345:12345"
+
 volumes:
   mariadb-data:
   prometheus-data:
   grafana-data:
+  loki-data:

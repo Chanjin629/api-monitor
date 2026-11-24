@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 16 (Grafana Alloy + Loki)
+현재 단계: 16-1 (부하 테스트)
 
 ## 로드맵
 
@@ -28,7 +28,7 @@
 
 ### 관측성
 - [x] 15. Actuator + Micrometer + Prometheus + Grafana
-- [ ] 16. Grafana Alloy + Loki
+- [x] 16. Grafana Alloy + Loki
 - [ ] 16-1. 부하 테스트 (k6, Redis·Kafka 도입 판단 근거 측정)
 
 ### 확장
@@ -142,3 +142,11 @@
 - 테스트 결과: Backend 216개 통과(Actuator 3, 검사 메트릭 1, 디스패치 지연 1 추가, 발송기 테스트에 메트릭 확인 추가). 개발 서버에서 관리 포트만 열리는 것(8080은 404, 8081 `env`는 401), Prometheus 수집 대상 UP, Grafana 대시보드의 API 요청 수·p95(약 55ms), 검사 수, 디스패치 지연 p95(약 2.8초), JVM·DB 연결 그래프를 확인했다.
 - 발견한 문제: 주기 작업 실패 메트릭의 `job` 태그가 Prometheus가 붙이는 수집 작업 이름 `job`과 겹쳐 `exported_job`으로 바뀌었다. 태그 이름을 `task`로 바꿨다(테스트로 확인, 이전 서버를 끄지 못해 화면 재확인은 못 함). 테스트에서는 Spring Boot가 메트릭 내보내기를 기본으로 꺼서 Prometheus 내보내기를 명시적으로 켰다.
 - 남은 일: 운영용 Grafana 로그인과 Prometheus 수집 대상은 20단계(전체 Docker Compose)에서 정한다. 개발 중 관리 포트(8081)는 PC의 모든 네트워크 주소에서 열리므로 공용 네트워크에서는 방화벽을 켜 둔다.
+
+### 16단계: Grafana Alloy + Loki (2026-11-24)
+
+- 요약: 요청마다 `TraceIdFilter`가 traceId를 만들어 MDC에 넣고, 오류 응답(401·403 포함)과 그 요청의 모든 로그가 같은 traceId를 쓰게 했다. local 프로필에서 `backend/logs/api-monitor.log`에 JSON(`logstash` 형식) 로그를 쓰고, 개발용 Alloy(v1.22.0)가 읽어 Loki(3.7.10)로 보낸다. 라벨은 `app`, `level`만 두고 `traceId`, `logger`는 구조화 메타데이터로 넣었다. 보관은 7일이다. Grafana에 Loki 데이터 소스를 자동 등록하고, 대시보드에 "최근 오류·경고 로그"와 "traceId로 찾기" 패널을 추가했다.
+- 주요 변경 파일: `global/error/{TraceIdFilter,TraceIds,GlobalExceptionHandler}.kt`, `global/security/ErrorResponseWriter.kt`, `application{,-local}.yml`, `infra/loki/loki-config.yml`, `infra/alloy/config.alloy`, `infra/grafana/provisioning/datasources/loki.yml`, `infra/grafana/dashboards/api-monitor.json`, `infra/docker-compose.dev.yml`, `docs/02-architecture.md`, `README.md`
+- 테스트 결과: Backend 220개 통과(traceId 4 추가). Loki 설정 검사(`-verify-config`)와 Alloy 문법 검사(`fmt`) 통과. 개발 서버에서 404 응답의 traceId로 Loki를 검색해 그 요청의 로그 1줄만 나오는 것, 라벨이 `app`·`level`(Loki가 붙이는 `service_name` 포함)뿐인 것, 대시보드의 두 로그 패널을 확인했다. 로그 파일에 고객 URL, 헤더, Webhook 주소가 없었다.
+- 발견한 문제: Alloy가 파일 이름 라벨을 자동으로 붙여 설정에서 뺐다. 익명 보기 권한으로는 Grafana Explore 화면을 쓸 수 없어, 권한을 넓히지 않고 대시보드에 traceId 입력칸과 검색 패널을 넣었다.
+- 남은 일: 운영에서는 앱 컨테이너 로그를 수집하고 보관 기간을 정한다(20단계). Alloy 읽기 위치는 컨테이너 안에만 저장되므로, 컨테이너를 새로 만들면 로그 파일을 처음부터 다시 읽을 수 있다(개발용이라 그대로 둔다).

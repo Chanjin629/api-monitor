@@ -19,7 +19,7 @@ class ErrorResponseWriter(
         response.status = errorCode.status.value()
         response.contentType = MediaType.APPLICATION_JSON_VALUE
         response.characterEncoding = Charsets.UTF_8.name()
-        val body = ErrorResponse.of(errorCode, errorCode.message, emptyList(), TraceIds.newId())
+        val body = ErrorResponse.of(errorCode, errorCode.message, emptyList(), TraceIds.current())
         response.writer.write(jsonMapper.writeValueAsString(body))
     }
 }

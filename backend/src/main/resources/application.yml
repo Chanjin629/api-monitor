@@ -85,6 +85,11 @@ management:
         apimonitor.check.duration: true
 
 logging:
+  structured:
+    format:
+      # 파일 로그는 한 줄에 JSON 하나로 쓴다. Alloy가 읽어 Loki로 보내고, level·traceId를 필드로 찾는다.
+      # 터미널 로그는 사람이 읽기 쉬운 기본 형식을 유지한다.
+      file: logstash
   level:
     # 고객 API의 연결 오류(인증서 오류 등)는 정상적인 검사 결과다.
     # Reactor Netty가 오류마다 남기는 WARN 스택 트레이스는 로그를 채우고 고객 도메인을 노출하므로 끈다.

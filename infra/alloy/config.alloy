@@ -1,0 +1,65 @@
+// 개발용 Alloy 설정: PC에서 실행 중인 앱의 JSON 로그 파일을 읽어 Loki로 보낸다.
+// 운영에서는 20단계에서 앱 컨테이너의 로그를 읽도록 바꾼다.
+
+// 1. 읽을 파일. backend/logs/가 컨테이너의 /var/log/api-monitor에 읽기 전용으로 연결된다.
+local.file_match "app" {
+  path_targets = [{
+    "__path__" = "/var/log/api-monitor/*.log",
+    "app"      = "api-monitor",
+  }]
+}
+
+// 2. 파일 읽기. Windows 폴더 연결은 변경 알림이 오지 않으므로 주기적으로 확인한다.
+loki.source.file "app" {
+  targets    = local.file_match.app.targets
+  forward_to = [loki.process.app.receiver]
+
+  file_watch {
+    min_poll_frequency = "1s"
+    max_poll_frequency = "5s"
+  }
+}
+
+// 3. JSON 해석.
+//    라벨(분류값)은 값의 종류가 적은 app, level만 둔다. 라벨 값이 많아지면 Loki가 느려진다.
+//    traceId·logger는 요청마다 값이 달라 구조화 메타데이터(검색 가능한 부가 정보)로 넣는다.
+loki.process "app" {
+  forward_to = [loki.write.local.receiver]
+
+  stage.json {
+    expressions = {
+      timestamp = "\"@timestamp\"",
+      level     = "level",
+      logger    = "logger_name",
+      traceId   = "traceId",
+    }
+  }
+
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339Nano"
+  }
+
+  stage.labels {
+    values = { level = "" }
+  }
+
+  // 파일 읽기 단계가 자동으로 붙이는 파일 이름 라벨은 검색에 쓰지 않으므로 뺀다.
+  stage.label_drop {
+    values = ["filename"]
+  }
+
+  stage.structured_metadata {
+    values = {
+      logger  = "",
+      traceId = "",
+    }
+  }
+}
+
+// 4. Loki로 보내기.
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
