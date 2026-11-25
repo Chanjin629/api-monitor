@@ -10,13 +10,14 @@ api-monitor/
 ├── backend/                Spring Boot 애플리케이션
 ├── frontend/               React 애플리케이션
 ├── infra/                  실행 환경 설정
-│   ├── docker-compose.dev.yml   개발용 MariaDB
+│   ├── docker-compose.dev.yml   개발용 MariaDB, 관측성 도구, 부하 테스트 도구
 │   ├── docker-compose.yml       운영용 전체 구성
 │   ├── caddy/                   HTTPS, 정적 파일, API 전달
 │   ├── prometheus/              메트릭 수집 대상
 │   ├── grafana/                 데이터 소스, 대시보드
 │   ├── alloy/                   로그 수집 설정
-│   └── loki/                    로그 저장 설정
+│   ├── loki/                    로그 저장 설정
+│   └── k6/                      부하 테스트 스크립트, 테스트 데이터 SQL, 가짜 대상 서버 응답
 ├── docs/                   설계 문서, PROGRESS.md
 ├── .env.example            필요한 환경 변수 목록. 실제 값은 넣지 않음
 ├── .gitignore

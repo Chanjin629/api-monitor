@@ -14,7 +14,7 @@
 | Frontend | React, TypeScript, Vite |
 | DB | MariaDB 11.8 |
 | 인증 | GitHub OAuth, JWT (Access 15분), Refresh Token 교체·재사용 감지 |
-| 테스트 | JUnit 5, MockK, Testcontainers, Vitest |
+| 테스트 | JUnit 5, MockK, Testcontainers, Vitest, k6 (부하 테스트) |
 | 배포 | Docker Compose, GitHub Actions, Caddy |
 
 ## 설계 문서
@@ -27,6 +27,7 @@
 | [디렉터리 구조](docs/04-structure.md) | 패키지와 폴더 구성 |
 | [API 명세](docs/05-api-spec.md) | 엔드포인트, 응답 형식, 에러 코드 |
 | [화면 설계](docs/06-screens.md) | 화면 구성과 API 연결 |
+| [부하 테스트](docs/07-load-test.md) | k6 측정 방법, 결과, Redis·Kafka 판단 |
 
 ## 로컬 실행
 

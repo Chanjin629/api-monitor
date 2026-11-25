@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 16-1 (부하 테스트)
+현재 단계: 17 (Redis 도입)
 
 ## 로드맵
 
@@ -29,7 +29,7 @@
 ### 관측성
 - [x] 15. Actuator + Micrometer + Prometheus + Grafana
 - [x] 16. Grafana Alloy + Loki
-- [ ] 16-1. 부하 테스트 (k6, Redis·Kafka 도입 판단 근거 측정)
+- [x] 16-1. 부하 테스트 (k6, Redis·Kafka 도입 판단 근거 측정)
 
 ### 확장
 - [ ] 17. Redis 도입 (도입 이유 설명 후)
@@ -150,3 +150,11 @@
 - 테스트 결과: Backend 220개 통과(traceId 4 추가). Loki 설정 검사(`-verify-config`)와 Alloy 문법 검사(`fmt`) 통과. 개발 서버에서 404 응답의 traceId로 Loki를 검색해 그 요청의 로그 1줄만 나오는 것, 라벨이 `app`·`level`(Loki가 붙이는 `service_name` 포함)뿐인 것, 대시보드의 두 로그 패널을 확인했다. 로그 파일에 고객 URL, 헤더, Webhook 주소가 없었다.
 - 발견한 문제: Alloy가 파일 이름 라벨을 자동으로 붙여 설정에서 뺐다. 익명 보기 권한으로는 Grafana Explore 화면을 쓸 수 없어, 권한을 넓히지 않고 대시보드에 traceId 입력칸과 검색 패널을 넣었다.
 - 남은 일: 운영에서는 앱 컨테이너 로그를 수집하고 보관 기간을 정한다(20단계). Alloy 읽기 위치는 컨테이너 안에만 저장되므로, 컨테이너를 새로 만들면 로그 파일을 처음부터 다시 읽을 수 있다(개발용이라 그대로 둔다).
+
+### 16-1단계: 부하 테스트 (2026-11-25)
+
+- 요약: k6(2.4.0)로 대시보드 API에 부하를 주면서, 검사 대상인 가짜 서버(WireMock 3.13.2)를 향해 모니터 1,000~3,000개를 실제로 검사했다. 가짜 서버(`127.0.0.1`)를 검사할 수 있게 `loadtest`와 `local` 프로필이 함께 켜졌을 때만 이 IP 하나를 SSRF 차단에서 빼는 설정을 추가하고, 설계 문서에 먼저 적었다. 부하 테스트용 모니터는 SQL로 넣고 지운다. 결과와 판단은 `docs/07-load-test.md`에 정리했다.
+- 주요 변경 파일: `global/ssrf/LoadTestAddressConfig.kt`, `application-loadtest.yml`, `infra/k6/{api-load.js,seed-monitors.sql,cleanup.sql,wiremock/mappings/targets.json}`, `infra/docker-compose.dev.yml`, `docs/{02-architecture,03-erd,04-structure,07-load-test}.md`, `README.md`
+- 테스트 결과: Backend 223개 통과(부하 테스트 예외 3 추가). 측정: 모니터 1,000개에서 초당 16.5건 처리, API p95 45ms, 30%가 Timeout이어도 실행 중인 검사 최대 107개. 3,000개에서는 초당 39건에서 멈추고 디스패치 지연 p95가 17초로 늘었다. DB 연결 풀(10개)이 모두 차서 대기가 생긴 것이 원인이고 CPU는 8%였다. 검사 기록은 한 행 약 83바이트로, 14일치 약 1.7GB다.
+- 판단: 대시보드 API가 목표보다 훨씬 빨라 Redis 캐시는 필요 없다. 17단계에서는 요청 제한부터 최소 범위로 적용한다. Kafka는 목표 규모에서 필요 없고 18단계에서 학습 목적으로 진행한다.
+- 남은 일: 디스패치 지연 p95가 5초 주기 구조 때문에 목표(5초)에 걸쳐 있다(약 5.4초 추정, 최대 5.55초). 디스패처 주기를 2초 등으로 줄일지 결정이 필요하다. 이전 서버 프로세스를 끄지 못해 주기를 바꾼 재측정은 하지 않았다.

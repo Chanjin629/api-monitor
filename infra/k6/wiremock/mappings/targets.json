@@ -1,0 +1,31 @@
+{
+  "mappings": [
+    {
+      "name": "정상 응답 (50~300ms)",
+      "request": { "method": "ANY", "urlPathPattern": "/ok/.*" },
+      "response": {
+        "status": 200,
+        "body": "ok",
+        "delayDistribution": { "type": "uniform", "lower": 50, "upper": 300 }
+      }
+    },
+    {
+      "name": "서버 오류 (장애 판정용)",
+      "request": { "method": "ANY", "urlPathPattern": "/fail/.*" },
+      "response": {
+        "status": 500,
+        "body": "error",
+        "delayDistribution": { "type": "uniform", "lower": 50, "upper": 300 }
+      }
+    },
+    {
+      "name": "느린 응답 (검사 Timeout 10초보다 길다)",
+      "request": { "method": "ANY", "urlPathPattern": "/slow/.*" },
+      "response": {
+        "status": 200,
+        "body": "slow",
+        "fixedDelayMilliseconds": 15000
+      }
+    }
+  ]
+}

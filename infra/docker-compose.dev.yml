@@ -96,6 +96,31 @@ services:
       # 수집 상태를 확인하는 Alloy 화면
       - "127.0.0.1:12345:12345"
 
+  # 부하 테스트 (docs/07-load-test.md). 실행: docker compose -f infra/docker-compose.dev.yml --profile loadtest up -d loadtest-target
+  # 검사 대상 가짜 서버. 앱이 PC에서 127.0.0.1:18080으로 호출한다.
+  loadtest-target:
+    image: wiremock/wiremock:3.13.2
+    container_name: api-monitor-loadtest-target
+    profiles: [loadtest]
+    command:
+      - --disable-banner
+      - --no-request-journal         # 요청 기록을 쌓지 않아 메모리가 늘지 않게 한다
+      - --async-response-enabled=true # 지연 응답 중에 스레드를 붙잡지 않는다
+      - --container-threads=300
+    volumes:
+      - ./k6/wiremock:/home/wiremock:ro
+    ports:
+      - "127.0.0.1:18080:8080"
+
+  # API 부하 도구. 실행 방법은 docs/07-load-test.md 참고 (docker compose run --rm k6 ...)
+  k6:
+    image: grafana/k6:2.4.0
+    profiles: [loadtest]
+    volumes:
+      - ./k6:/scripts:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   mariadb-data:
   prometheus-data:

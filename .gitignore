@@ -12,6 +12,7 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 *.class
 *.log
+backend/logs/
 
 # Frontend (Node, Vite)
 node_modules/

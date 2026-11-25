@@ -1,0 +1,6 @@
+# 부하 테스트 설정. local 프로필과 함께 켠다: --spring.profiles.active=local,loadtest
+# 가짜 대상 서버(infra/k6, 127.0.0.1:18080)를 검사할 수 있게 이 IP만 SSRF 차단에서 뺀다.
+# loadtest만 켜고 local을 켜지 않으면 예외가 만들어지지 않는다. (docs/02-architecture.md)
+loadtest:
+  allowed-addresses:
+    - 127.0.0.1
