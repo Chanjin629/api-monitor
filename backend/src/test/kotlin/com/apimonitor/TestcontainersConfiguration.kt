@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
+import org.testcontainers.containers.GenericContainer
 import org.testcontainers.mariadb.MariaDBContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.InetAddress
@@ -25,6 +26,13 @@ class TestcontainersConfiguration {
 	@ServiceConnection
 	fun mariaDbContainer(): MariaDBContainer {
 		return MariaDBContainer(DockerImageName.parse("mariadb:11.8"))
+	}
+
+	/** 요청 제한 횟수를 세는 Redis. 개발 환경과 같은 버전을 쓴다. */
+	@Bean
+	@ServiceConnection(name = "redis")
+	fun redisContainer(): GenericContainer<*> {
+		return GenericContainer(DockerImageName.parse("redis:8.12.0-alpine")).withExposedPorts(6379)
 	}
 
 	/** 테스트에서 시각을 바꿔 만료 같은 상황을 재현한다. 기본은 실제 현재 시각이다. */

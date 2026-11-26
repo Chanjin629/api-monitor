@@ -12,7 +12,7 @@
 | --- | --- |
 | Backend | Kotlin, Spring Boot 4.1, Spring Data JPA, Flyway |
 | Frontend | React, TypeScript, Vite |
-| DB | MariaDB 11.8 |
+| DB / Cache | MariaDB 11.8, Redis 8.12 (요청 제한) |
 | 인증 | GitHub OAuth, JWT (Access 15분), Refresh Token 교체·재사용 감지 |
 | 테스트 | JUnit 5, MockK, Testcontainers, Vitest, k6 (부하 테스트) |
 | 배포 | Docker Compose, GitHub Actions, Caddy |
@@ -38,7 +38,7 @@
    - Redirect URI: `http://localhost:5173/login/oauth2/code/github`
 
 ```bash
-# 2. 개발용 MariaDB 실행 (127.0.0.1:3307)
+# 2. 개발용 MariaDB(127.0.0.1:3307)와 Redis(127.0.0.1:6380) 실행
 docker compose -f infra/docker-compose.dev.yml up -d
 
 # 3. 서버 실행 (local 프로필, 테이블은 Flyway가 자동 생성)
@@ -67,6 +67,7 @@ cd frontend && npm install && npm run dev
 - 모니터 URL은 등록·수정할 때 SSRF 검증을 거칩니다. 내부망, 루프백, 클라우드 메타데이터 주소 등은 `422 URL_BLOCKED`로 거부합니다.
 - 요청 헤더 값은 AES-GCM으로 암호화해 저장하고, 응답에서는 `********`로 가립니다.
 - 장애가 시작되거나 복구되면 등록한 Discord Webhook으로 한 번씩 알립니다. Webhook 주소도 암호화해 저장하고 끝 4자리만 보여 줍니다.
+- 요청 제한: 데모 로그인·GitHub 로그인 시작은 IP당 분당 10회, 토큰 재발급은 30회, 알림 테스트 발송은 회원당 5회, 그 밖의 API는 회원당 300회입니다. 넘으면 `429 RATE_LIMITED`와 `Retry-After` 헤더로 응답합니다. Redis가 멈추면 제한만 건너뛰고 서비스는 계속 동작합니다.
 - 자세한 요청·응답 형식은 [API 명세](docs/05-api-spec.md)와 Swagger UI를 참고하세요.
 
 ## 서버 메트릭과 로그 보기 (Prometheus, Grafana, Loki)

@@ -94,3 +94,31 @@ docker compose -f infra/docker-compose.dev.yml --profile loadtest stop loadtest-
 ```
 
 서버 지표는 Grafana의 "API Monitor 서버" 대시보드에서 같은 10분 구간을 본다.
+
+## 7. 17단계: 요청 제한 적용 후 (2026-11-26)
+
+Redis 요청 제한([아키텍처 6.1](02-architecture.md))을 켠 상태로 ①과 같은 조건(모니터 1,000개, 동시 사용자 20)을 5분 측정했다. 모든 API 요청이 Redis를 한 번 더 거치므로, 그 비용이 목표(N-P4)에 영향을 주는지 본다.
+
+| 지표 | 16-1단계 ① (제한 없음) | 17단계 (요청 제한) |
+| --- | --- | --- |
+| API p95 (k6) | 45ms | **42.65ms** (p99 57.65ms, 최대 110ms) |
+| API p95 (서버 히스토그램) | | 36.6ms |
+| API 요청 수 / 실패율 | 34/초, 0% | 33.9/초, 0% |
+| 검사 처리량 | 16.5건/초 | 17.3건/초 |
+
+차이는 측정 오차 범위 안이다. 회원 1명당 분당 약 100회라 일반 API 한도(300회)에 걸린 요청은 없었다.
+
+| 확인 | 결과 |
+| --- | --- |
+| 데모 로그인 15번 연속 (`infra/k6/rate-limit.js`) | 10번까지 200, 11번째부터 429 `RATE_LIMITED`, `Retry-After` 33~34초 |
+| Redis 컨테이너 정지 중 API 15번, 데모 로그인 12번 | 모두 200, 응답 약 11ms. 오류 메트릭 28 증가, 경고 로그 1줄, health는 UP |
+| Redis 다시 시작 후 데모 로그인 12번 | 자동으로 다시 연결되어 10번 200, 2번 429 |
+
+Redis가 끊긴 동안에는 명령을 기다리지 않고 바로 실패시키므로(`REJECT_COMMANDS`) 응답 대기 시간(200ms)만큼 느려지지 않았다.
+
+처음 측정은 PC가 측정 도중 약 34분 절전 상태에 들어가 버렸다(HikariCP가 시계 건너뜀을 기록). 그 결과는 버리고 다시 쟀다. 절전에서 깨어난 직후 Redis 명령 몇 건이 응답 대기 시간을 넘겼지만, 요청은 그대로 통과되었다.
+
+```bash
+# 요청 제한 확인 (앱 실행 중)
+docker compose -f infra/docker-compose.dev.yml --profile loadtest run --rm k6 run /scripts/rate-limit.js
+```

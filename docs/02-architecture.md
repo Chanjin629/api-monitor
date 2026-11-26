@@ -23,6 +23,7 @@ flowchart LR
         end
 
         DB[("MariaDB")]
+        Redis[("Redis<br/>요청 제한 횟수")]
 
         subgraph Obs["관측성"]
             Prometheus["Prometheus"]
@@ -37,6 +38,7 @@ flowchart LR
     Caddy -->|"/api, /oauth2, /login"| Api
     Api -->|사용자 정보 조회| GitHub
     Api --> DB
+    Api -->|요청 수 세기| Redis
     Dispatcher --> DB
     Dispatcher --> Checker
     Checker -->|검증한 IP로 호출| Customer
@@ -56,6 +58,7 @@ flowchart LR
 | Caddy | HTTPS 인증서 자동 발급, React 정적 파일 제공, API 전달 | 화면과 API를 같은 도메인으로 묶어 CORS 설정과 쿠키 처리가 단순해진다 |
 | Spring Boot | API, 스케줄링, 검사, 알림을 한 프로세스에서 실행 | 처음부터 나누면 배포와 장애 지점만 늘어난다 |
 | MariaDB | 회원, 설정, 검사 기록, 장애, 알림 예약 저장 | `SKIP LOCKED`를 지원하며(10.6 이상), 날짜별 파티션으로 오래된 기록을 빠르게 지울 수 있다 |
+| Redis | 요청 제한 횟수 (17단계) | 서버가 여러 대여도 횟수를 한곳에서 세고, 키마다 만료 시간을 둘 수 있다. 장애가 나도 요청은 통과시킨다 (6.1절) |
 | Prometheus, Grafana | 우리 서버 자체의 메트릭 수집과 시각화 | 고객 API 검사 이력과 섞지 않는다 |
 | Alloy, Loki | 컨테이너 로그 수집과 검색 | 로그 수집은 `CLAUDE.md` 규칙에 따라 Alloy로 한다 |
 
@@ -426,6 +429,26 @@ Redis는 16단계 뒤 부하 테스트 결과를 기준으로 해결할 문제�
 | Kafka | 18단계, 배포 후 | 검사 작업을 Worker 프로세스로 분리하고, 트래픽 급증을 완충하는 구조를 검증 | 목표 규모에서 필요하지 않아도 학습·포트폴리오 목적으로 진행한다 |
 
 16-1단계 측정 결과, 목표 규모에서 대시보드 API p95는 45ms로 캐시가 필요하지 않았다. 그래서 Redis는 요청 제한부터 최소 범위로 적용한다. 자세한 수치는 [부하 테스트](07-load-test.md)에 있다.
+
+### 6.1 요청 제한 (17단계)
+
+**요청 제한(rate limit)**은 같은 대상이 정해진 시간에 보낼 수 있는 요청 수에 상한을 두고, 넘으면 `429 RATE_LIMITED`로 거절하는 기능이다. 공개 서비스라 데모 로그인 반복 호출(토큰 발급과 DB 쓰기)이나 알림 테스트 발송 반복(Discord가 우리 서버 IP를 막을 수 있다) 같은 남용을 막는다. 횟수를 앱 메모리에 세면 서버가 늘어날 때 서버마다 따로 세므로 Redis에 센다.
+
+| 규칙 | 대상 요청 | 기준 | 한도 |
+| --- | --- | --- | --- |
+| `demo-login` | `POST /api/v1/auth/demo` | IP | 분당 10 |
+| `oauth-login` | `GET /oauth2/authorization/**` | IP | 분당 10 |
+| `token-refresh` | `POST /api/v1/auth/refresh` | IP | 분당 30 |
+| `notification-test` | `POST /api/v1/notification-channels/{id}/test` | 회원 | 분당 5 |
+| `api` | 그 밖의 `/api/**` | 회원, 데모 계정과 비로그인은 IP | 분당 300 |
+
+- 한 요청에는 규칙 하나만 적용한다. 위 표에서 먼저 맞는 규칙을 쓴다.
+- **데모 계정은 IP로 센다.** 데모 방문자는 모두 같은 회원 하나를 쓰므로, 회원 기준이면 한 사람의 남용이 다른 방문자까지 막는다.
+- **IP는 `request.remoteAddr`로 읽고 클라이언트가 보낸 `X-Forwarded-For`는 믿지 않는다.** 위조로 제한을 피할 수 있기 때문이다. 운영에서 Caddy가 넘겨 주는 실제 IP를 읽는 설정은 20단계에서 Caddy와 함께 한다.
+- **세는 방식은 고정 창(fixed window)이다.** 키 `rl:{규칙}:{대상}:{분 번호}`를 `INCR`로 올리고, 첫 요청이면 60초 뒤 사라지게 `EXPIRE`를 건다. 두 명령은 Lua 스크립트 하나로 실행해 만료 없이 남는 키가 생기지 않게 한다. 분 경계에서 잠깐 한도의 2배까지 허용될 수 있지만, 남용 방지가 목적이라 받아들인다.
+- **거절 응답**은 공통 오류 형식(traceId 포함)에 `Retry-After` 헤더(다음 분까지 남은 초)를 붙인다.
+- **Redis 장애 시에는 요청을 통과시킨다(fail-open).** 요청 제한은 보조 장치라 그것 때문에 서비스가 멈추면 안 된다. 명령 응답 대기는 200ms로 짧게 두고, 실패하면 경고 로그와 `apimonitor.ratelimit.errors` 메트릭을 남긴다.
+- 검사는 Spring Security 필터 체인 안에서 한다. API 체인은 JWT 필터 뒤(회원 ID를 알아야 한다), OAuth 체인은 GitHub로 보내기 전이다. 거절 수는 `apimonitor.ratelimit.rejected{rule}` 메트릭으로 본다.
 
 Kafka를 도입하면 위 구조의 `CheckExecutor` 구현체를 교체하고, Outbox 테이블을 발행 지점으로 재사용한다. Kafka 자체도 메모리를 많이 쓰는 서비스라 서버 1대 구성에서는 오히려 불안정해질 수 있다. README에는 목표 규모에서는 필요하지 않았다는 측정 결과와 학습 목적으로 도입한 이유를 함께 남긴다.
 

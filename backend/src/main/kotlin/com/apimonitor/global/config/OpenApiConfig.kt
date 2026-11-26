@@ -20,7 +20,12 @@ class OpenApiConfig {
         .info(
             Info()
                 .title("API Monitor")
-                .description("API를 주기적으로 검사해 장애와 복구를 알려 주는 서비스의 API 문서")
+                .description(
+                    "API를 주기적으로 검사해 장애와 복구를 알려 주는 서비스의 API 문서\n\n" +
+                        "모든 API에 요청 제한이 있다. 한도를 넘으면 `429 RATE_LIMITED`와 `Retry-After`(초) 헤더로 응답한다. " +
+                        "데모 로그인·GitHub 로그인 시작은 IP당 분당 10회, 토큰 재발급 30회, 알림 테스트 발송은 회원당 5회, " +
+                        "그 밖의 API는 회원당(데모·비로그인은 IP당) 300회다.",
+                )
                 .version("v1"),
         )
         .components(

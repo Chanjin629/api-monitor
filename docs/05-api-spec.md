@@ -83,6 +83,7 @@
 | 422 | `URL_BLOCKED` | SSRF 규칙에 걸린 URL |
 | 422 | `WEBHOOK_URL_INVALID` | Discord Webhook 형식이 아님 |
 | 422 | `HEADER_NOT_ALLOWED` | `Host` 등 지정할 수 없는 헤더 |
+| 429 | `RATE_LIMITED` | 요청 제한 초과. `Retry-After` 헤더의 초만큼 기다린 뒤 다시 시도 |
 | 502 | `NOTIFICATION_SEND_FAILED` | 테스트 발송이 Discord에서 실패 |
 | 500 | `INTERNAL_ERROR` | 처리하지 못한 서버 오류 |
 
@@ -90,6 +91,7 @@
 
 - 다른 사용자의 리소스도 `404`로 응답한다. `403`이면 해당 ID가 존재한다는 사실이 드러난다.
 - `URL_BLOCKED`의 메시지에는 어떤 대역에 걸렸는지 적지 않는다. 공격자가 내부망 구조를 탐색하는 데 쓰일 수 있다.
+- `429 RATE_LIMITED`는 IP 또는 회원별 분당 한도를 넘었을 때다. 데모 로그인·GitHub 로그인 시작은 IP당 분당 10회, 토큰 재발급은 30회, 알림 테스트 발송은 회원당 5회, 그 밖의 API는 회원당(데모와 비로그인은 IP당) 300회다. 자세한 규칙은 [아키텍처 6.1](02-architecture.md)에 있다.
 
 ## 2. 엔드포인트 목록
 

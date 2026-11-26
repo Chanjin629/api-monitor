@@ -1,6 +1,6 @@
 # 진행 상황
 
-현재 단계: 17 (Redis 도입)
+현재 단계: 19 (테스트 보강)
 
 ## 로드맵
 
@@ -32,7 +32,7 @@
 - [x] 16-1. 부하 테스트 (k6, Redis·Kafka 도입 판단 근거 측정)
 
 ### 확장
-- [ ] 17. Redis 도입 (도입 이유 설명 후)
+- [x] 17. Redis 도입 (요청 제한)
 
 ### 마무리
 - [ ] 19. 테스트 보강 (통합 테스트, 장애 시나리오)
@@ -58,6 +58,8 @@
 - 2026-11-15: Frontend 테스트 도구로 Vitest를 추가했다. 토큰 재발급처럼 틀리면 사용자가 계속 로그아웃되는 로직을 자동으로 검증하기 위해서다.
 - 2026-11-15: jjwt의 JSON 모듈은 `jjwt-jackson`(Jackson 2)을 쓴다. Spring Boot 4.1이 Jackson 2 버전도 관리하므로 앱의 Jackson 3과 함께 둘 수 있다.
 - 2026-11-14: 개발용 MariaDB의 기본 포트를 3307로 정했다. 다른 프로젝트의 MariaDB 컨테이너가 3306을 쓰고 있어, 두 DB를 함께 띄울 수 있게 하기 위해서다.
+- 2026-11-26: Redis는 요청 제한에만 쓴다. 16-1단계 측정에서 대시보드 API p95가 45ms라 캐시가 필요 없었다. 공개 서비스의 로그인·데모·알림 테스트 발송 남용을 막고, 서버가 늘어도 횟수를 한곳에서 세기 위해서다. Redis 장애 시에는 요청을 통과시킨다(fail-open). 요청 제한 전용 라이브러리 없이 INCR·EXPIRE Lua 스크립트로 구현했다.
+- 2026-11-26: 개발용 Redis 포트를 6380으로 정했다. 다른 프로젝트의 Redis 컨테이너가 6379를 쓴다.
 - 2026-11-13: Backend 패키지는 기능 단위 아래에 `controller`, `dto`, `service`, `domain`, `repository`를 두는 구조로 바꿨다. 국내 실무에서 가장 흔하고 SmartFridge에서 써 본 방식이라 설명하기 쉽기 때문이다.
 
 ## 완료 내역
@@ -158,3 +160,11 @@
 - 테스트 결과: Backend 223개 통과(부하 테스트 예외 3 추가). 측정: 모니터 1,000개에서 초당 16.5건 처리, API p95 45ms, 30%가 Timeout이어도 실행 중인 검사 최대 107개. 3,000개에서는 초당 39건에서 멈추고 디스패치 지연 p95가 17초로 늘었다. DB 연결 풀(10개)이 모두 차서 대기가 생긴 것이 원인이고 CPU는 8%였다. 검사 기록은 한 행 약 83바이트로, 14일치 약 1.7GB다.
 - 판단: 대시보드 API가 목표보다 훨씬 빨라 Redis 캐시는 필요 없다. 17단계에서는 요청 제한부터 최소 범위로 적용한다. Kafka는 목표 규모에서 필요 없고 18단계에서 학습 목적으로 진행한다.
 - 남은 일: 디스패치 지연 p95가 5초 주기 구조 때문에 목표(5초)에 걸쳐 있다(약 5.4초 추정, 최대 5.55초). 디스패처 주기를 2초 등으로 줄일지 결정이 필요하다. 이전 서버 프로세스를 끄지 못해 주기를 바꾼 재측정은 하지 않았다.
+
+### 17단계: Redis 요청 제한 (2026-11-26)
+
+- 요약: Redis 8.12로 IP·회원별 분당 요청 한도를 두었다. 데모 로그인·GitHub 로그인 시작은 IP당 10회, 토큰 재발급 30회, 알림 테스트 발송은 회원당 5회, 그 밖의 API는 회원당(데모·비로그인은 IP당) 300회다. 넘으면 `429 RATE_LIMITED`와 `Retry-After`로 응답한다. 1분 고정 창을 Lua 스크립트(INCR+EXPIRE)로 세고, Redis가 죽으면 요청을 통과시킨다. 연결이 끊긴 동안은 명령을 바로 실패시켜 API가 느려지지 않게 했다. `X-Forwarded-For`는 믿지 않는다.
+- 주요 변경 파일: `global/ratelimit/{RateLimitRule,RedisRateLimiter,RateLimitFilter}.kt`, `SecurityConfig.kt`, `ErrorCode.kt`, `OpenApiConfig.kt`, `application{,-local,-test}.yml`, `build.gradle.kts`, `TestcontainersConfiguration.kt`, `infra/docker-compose.dev.yml`, `infra/grafana/dashboards/api-monitor.json`, `infra/k6/rate-limit.js`, `docs/{01-requirements,02-architecture,04-structure,05-api-spec,07-load-test}.md`, `README.md`, `.env.example`
+- 테스트 결과: Backend 234개 통과(요청 제한 11 추가: Redis 횟수 세기 5, API 6). 측정: 요청 제한을 켠 상태에서 API p95 42.65ms(이전 45ms), 실패 0%. k6로 데모 로그인 11번째부터 429 확인. Redis를 멈춘 동안 API는 약 11ms로 계속 응답했고, 다시 켜자 자동으로 제한이 돌아왔다.
+- 발견한 문제: 요청 제한 API 테스트가 1분 칸이 바뀌는 순간에 걸리면 횟수가 다시 세어져 가끔 실패했다. 테스트 시각을 분의 30초 지점에 고정했다. 첫 부하 측정은 PC 절전으로 무효가 되어 다시 쟀다.
+- 남은 일: 운영에서 Caddy가 넘겨 주는 실제 IP를 읽는 설정, Redis 비밀번호는 20단계에서 한다. Redis가 끊긴 동안 Lettuce가 재연결 실패 경고를 계속 남긴다(재연결 간격이 최대 30초까지 늘어나 로그가 크게 쌓이지는 않는다).

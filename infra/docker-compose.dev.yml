@@ -28,6 +28,21 @@ services:
       timeout: 5s
       retries: 12
 
+  # 요청 제한 횟수를 센다 (docs/02-architecture.md 6.1). 횟수는 1분이면 사라지는 값이라 디스크에 저장하지 않는다.
+  redis:
+    image: redis:8.12.0-alpine
+    container_name: api-monitor-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      # 같은 PC에서만 접속할 수 있게 127.0.0.1에만 연다. 개발용이라 비밀번호는 두지 않는다(운영은 20단계).
+      # 다른 프로젝트의 Redis(6379)와 겹치지 않도록 기본 포트는 6380을 쓴다.
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   # 관측성 도구는 필요할 때만 띄운다.
   # 실행: docker compose -f infra/docker-compose.dev.yml --profile observability up -d
   prometheus:

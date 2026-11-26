@@ -127,7 +127,7 @@
     },
     {
       "type": "row",
-      "title": "알림과 주기 작업",
+      "title": "알림, 주기 작업, 요청 제한",
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
       "collapsed": false,
       "panels": []
@@ -137,7 +137,7 @@
       "type": "timeseries",
       "title": "알림 발송 결과 (5분 동안)",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 19 },
       "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
       "targets": [
         {
@@ -153,7 +153,7 @@
       "title": "실패한 작업 (1시간 동안)",
       "description": "0이 아니면 서버 로그를 확인한다. 검사 결과 저장 실패는 DB 장애를 뜻한다.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 19 },
       "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
       "targets": [
         {
@@ -165,6 +165,27 @@
           "refId": "B",
           "expr": "increase(apimonitor_check_result_save_failures_total{application=\"api-monitor\"}[1h])",
           "legendFormat": "검사 결과 저장 실패"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "요청 제한 거절 (5분 동안, 규칙별)",
+      "description": "429로 거절한 요청 수. Redis 오류는 요청을 통과시킨 횟수이며, 0이 아니면 Redis 상태를 확인한다.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 19 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (rule) (increase(apimonitor_ratelimit_rejected_total{application=\"api-monitor\"}[5m]))",
+          "legendFormat": "{{rule}}"
+        },
+        {
+          "refId": "B",
+          "expr": "increase(apimonitor_ratelimit_errors_total{application=\"api-monitor\"}[5m])",
+          "legendFormat": "Redis 오류 (통과시킴)"
         }
       ]
     },

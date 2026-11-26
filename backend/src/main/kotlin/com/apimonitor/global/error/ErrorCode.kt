@@ -34,5 +34,7 @@ enum class ErrorCode(
     WEBHOOK_URL_INVALID(HttpStatus.UNPROCESSABLE_CONTENT, "Discord Webhook 주소를 입력해 주세요."),
     NOTIFICATION_SEND_FAILED(HttpStatus.BAD_GATEWAY, "테스트 메시지를 보내지 못했습니다. 주소를 확인해 주세요."),
 
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
 }

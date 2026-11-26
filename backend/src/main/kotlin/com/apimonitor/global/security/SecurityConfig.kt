@@ -2,6 +2,9 @@ package com.apimonitor.global.security
 
 import com.apimonitor.auth.oauth.OAuth2LoginFailureHandler
 import com.apimonitor.auth.oauth.OAuth2LoginSuccessHandler
+import com.apimonitor.global.ratelimit.RateLimitFilter
+import com.apimonitor.global.ratelimit.RedisRateLimiter
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
@@ -10,6 +13,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository
 
@@ -27,7 +31,12 @@ class SecurityConfig(
     private val authorizationHandler: JwtAuthorizationHandler,
     private val loginSuccessHandler: OAuth2LoginSuccessHandler,
     private val loginFailureHandler: OAuth2LoginFailureHandler,
+    rateLimiter: RedisRateLimiter,
+    errorResponseWriter: ErrorResponseWriter,
+    @Value("\${ratelimit.enabled:true}") rateLimitEnabled: Boolean,
 ) {
+    /** 두 체인이 같은 필터를 쓴다. 요청 하나는 한 체인만 지나므로 두 번 세지 않는다. (docs/02-architecture.md 6.1) */
+    private val rateLimitFilter = RateLimitFilter(rateLimiter, errorResponseWriter, rateLimitEnabled)
 
     @Bean
     @Order(1)
@@ -39,6 +48,8 @@ class SecurityConfig(
             // 로그인 결과는 세션에 저장하지 않는다. 성공 처리기가 Refresh Token 쿠키를 대신 발급한다.
             .securityContext { it.securityContextRepository(RequestAttributeSecurityContextRepository()) }
             .authorizeHttpRequests { it.anyRequest().permitAll() }
+            // GitHub로 보내기 전에 IP별 로그인 시작 횟수를 센다.
+            .addFilterBefore(rateLimitFilter, OAuth2AuthorizationRequestRedirectFilter::class.java)
             .oauth2Login {
                 it.successHandler(loginSuccessHandler)
                 it.failureHandler(loginFailureHandler)
@@ -57,6 +68,8 @@ class SecurityConfig(
             .requestCache { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .addFilterBefore(JwtTokenFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter::class.java)
+            // 회원 ID로 세려면 JWT 검증 뒤여야 한다.
+            .addFilterAfter(rateLimitFilter, JwtTokenFilter::class.java)
             .exceptionHandling {
                 it.authenticationEntryPoint(authenticationHandler)
                 it.accessDeniedHandler(authorizationHandler)

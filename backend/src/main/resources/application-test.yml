@@ -41,6 +41,10 @@ demo:
   # 데모 데이터 테스트는 seed()를 직접 호출한다.
   seed-enabled: false
 
+ratelimit:
+  # 테스트들은 같은 IP(127.0.0.1)로 많은 요청을 보내므로 끈다. 요청 제한 테스트만 켜서 확인한다.
+  enabled: false
+
 logging:
   level:
     org.flywaydb: warn

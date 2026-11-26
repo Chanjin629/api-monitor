@@ -4,6 +4,10 @@ spring:
     url: jdbc:mariadb://localhost:${DB_PORT:3307}/${DB_NAME:api_monitor}
     username: ${DB_USERNAME:api_monitor}
     password: ${DB_PASSWORD:api_monitor_local}
+  data:
+    redis:
+      # 개발용 Redis(infra/docker-compose.dev.yml). 다른 프로젝트의 6379와 겹치지 않게 6380을 쓴다.
+      port: ${REDIS_PORT:6380}
 
 auth:
   jwt:

@@ -10,7 +10,7 @@ api-monitor/
 ├── backend/                Spring Boot 애플리케이션
 ├── frontend/               React 애플리케이션
 ├── infra/                  실행 환경 설정
-│   ├── docker-compose.dev.yml   개발용 MariaDB, 관측성 도구, 부하 테스트 도구
+│   ├── docker-compose.dev.yml   개발용 MariaDB, Redis, 관측성 도구, 부하 테스트 도구
 │   ├── docker-compose.yml       운영용 전체 구성
 │   ├── caddy/                   HTTPS, 정적 파일, API 전달
 │   ├── prometheus/              메트릭 수집 대상
@@ -79,6 +79,7 @@ backend/src/main/kotlin/com/apimonitor/
     ├── config/             Jackson, WebClient, 스케줄러 설정
     ├── security/           SecurityConfig, JwtTokenProvider, JwtTokenFilter, 401·403 핸들러
     ├── ssrf/               UrlSafetyValidator, SafeAddressResolver, IP 대역 판별
+    ├── ratelimit/          요청 제한 규칙, Redis 횟수 세기, 제한 필터
     ├── crypto/             AES-GCM 암호화
     ├── error/              ErrorCode, 예외, 전역 예외 처리
     └── response/           공통 응답 형식

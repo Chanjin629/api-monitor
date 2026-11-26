@@ -19,6 +19,13 @@ spring:
           preferred_instant_jdbc_type: TIMESTAMP
   flyway:
     locations: classpath:db/migration
+  data:
+    redis:
+      # 요청 제한 횟수를 센다. Redis가 느리거나 죽어도 API가 함께 느려지지 않도록 대기 시간을 짧게 둔다.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 200ms
+      connect-timeout: 200ms
   security:
     oauth2:
       client:
@@ -61,6 +68,10 @@ demo:
   # 데모 계정의 샘플 데이터를 서버 시작 시와 매일 현재 시각 기준으로 다시 만든다.
   seed-enabled: true
 
+ratelimit:
+  # IP·회원별 분당 요청 한도. 규칙은 RateLimitRule과 docs/02-architecture.md 6.1에 있다.
+  enabled: true
+
 management:
   server:
     # Actuator는 앱(8080)과 다른 관리 포트에서만 연다. 배포 시 Caddy는 8080만 외부에 연결한다.
@@ -74,6 +85,11 @@ management:
     health:
       # 관리 포트는 내부 네트워크에서만 접근하므로 DB 등 구성 요소별 상태를 보여 준다.
       show-components: always
+  health:
+    redis:
+      # Redis가 죽어도 요청 제한만 건너뛰고 서비스는 정상이다(fail-open). 앱 상태를 DOWN으로 만들지 않는다.
+      # Redis 장애는 apimonitor.ratelimit.errors 메트릭으로 본다.
+      enabled: false
   metrics:
     tags:
       application: api-monitor
