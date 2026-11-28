@@ -12,8 +12,13 @@ import com.apimonitor.monitor.dto.HeaderRequest
 import com.apimonitor.monitor.service.MonitorService
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatCode
 import org.junit.jupiter.api.Test
+import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
@@ -115,14 +120,72 @@ class CheckDispatcherTest(
         assertThat(elapsedMs).isLessThan(3000)
     }
 
-    private fun dispatcherWith(executor: CheckExecutor, registry: MeterRegistry = SimpleMeterRegistry()) = CheckDispatcher(
-        checkTargetRepository = checkTargetRepository,
+    @Test
+    fun `DB 오류로 선점에 실패해도 예외를 밖으로 던지지 않고 다음 주기에 다시 시도한다`() {
+        // 첫 주기는 DB 연결 실패, 다음 주기는 정상인 상황
+        val failingOnce = mockk<CheckTargetRepository>()
+        every { failingOnce.findDueForUpdate(any(), any()) } throws
+            DataAccessResourceFailureException("connection refused") andThen emptyList()
+        every { failingOnce.moveNextCheckAt(any()) } returns Unit
+        val registry = SimpleMeterRegistry()
+        val dispatcher = dispatcherWith(RecordingExecutor(), registry, repository = failingOnce)
+
+        assertThatCode { dispatcher.scheduledDispatch() }.doesNotThrowAnyException()
+        assertThat(jobFailures(registry)).isEqualTo(1.0)
+
+        dispatcher.scheduledDispatch()
+        assertThat(jobFailures(registry)).isEqualTo(1.0)
+        verify(exactly = 2) { failingOnce.findDueForUpdate(any(), any()) }
+    }
+
+    @Test
+    fun `서버가 재시작되어 결과가 오지 않은 검사도 다음 검사 시각에 다시 선점된다`() {
+        val due = createMonitor(newMember(), intervalMinutes = 1)
+        setNextCheckAt(due, now.minusSeconds(5))
+
+        // 선점한 뒤 실행 중에 서버가 멈춰 결과가 저장되지 않았다. "실행 중" 상태는 남지 않는다.
+        dispatcherWith(RecordingExecutor()).dispatch()
+        assertThat(nextCheckAt(due)).isEqualTo(now.plus(Duration.ofMinutes(1)))
+
+        // 재시작한 서버가 다음 검사 시각에 같은 모니터를 다시 가져간다.
+        val restarted = RecordingExecutor()
+        dispatcherWith(restarted, at = now.plus(Duration.ofMinutes(1))).dispatch()
+
+        assertThat(restarted.commands.map { it.monitorId }).contains(due)
+    }
+
+    @Test
+    fun `요청 헤더를 복호화할 수 없는 모니터만 건너뛰고 나머지는 검사한다`() {
+        val memberId = newMember()
+        val broken = createMonitor(memberId, headers = listOf(HeaderRequest("X-Api-Key", "secret")))
+        val healthy = createMonitor(memberId)
+        setNextCheckAt(broken, now.minusSeconds(5))
+        setNextCheckAt(healthy, now.minusSeconds(5))
+        // 암호화 키가 바뀐 상황: 저장된 값을 지금 키로 풀 수 없다.
+        jdbcTemplate.update("UPDATE monitors SET request_headers_encrypted = ? WHERE id = ?", "not-decryptable", broken)
+        val executor = RecordingExecutor()
+
+        dispatcherWith(executor).dispatch()
+
+        assertThat(executor.commands.map { it.monitorId }).contains(healthy).doesNotContain(broken)
+    }
+
+    private fun jobFailures(registry: MeterRegistry): Double =
+        registry.get("apimonitor.scheduled.job.failures").tag("task", "check_dispatcher").counter().count()
+
+    private fun dispatcherWith(
+        executor: CheckExecutor,
+        registry: MeterRegistry = SimpleMeterRegistry(),
+        at: Instant = now,
+        repository: CheckTargetRepository = checkTargetRepository,
+    ) = CheckDispatcher(
+        checkTargetRepository = repository,
         checkExecutor = executor,
         transactionTemplate = transactionTemplate,
         encryptor = encryptor,
         jsonMapper = jsonMapper,
         properties = CheckProperties(),
-        clock = Clock.fixed(now, ZoneOffset.UTC),
+        clock = Clock.fixed(at, ZoneOffset.UTC),
         meterRegistry = registry,
     )
 

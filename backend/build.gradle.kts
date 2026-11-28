@@ -4,6 +4,8 @@ plugins {
 	id("org.springframework.boot") version "4.1.2"
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("plugin.jpa") version "2.3.21"
+	// 테스트 커버리지 리포트. Gradle 내장 플러그인이라 라이브러리를 추가하지 않는다. 기준 미달로 빌드를 막지는 않는다.
+	jacoco
 }
 
 group = "com.apimonitor"
@@ -74,4 +76,18 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 	// 테스트는 로컬 DB 설정 대신 application-test.yml과 Testcontainers를 쓴다.
 	systemProperty("spring.profiles.active", "test")
+}
+
+jacoco {
+	toolVersion = "0.8.16"
+}
+
+// 리포트: build/reports/jacoco/test/html/index.html (./gradlew test jacocoTestReport)
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+	reports {
+		html.required = true
+		csv.required = true
+		xml.required = false
+	}
 }

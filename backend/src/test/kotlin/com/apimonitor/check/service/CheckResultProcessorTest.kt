@@ -19,6 +19,9 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * 검사 결과 처리가 원본 기록, 상태, 장애, 알림 예약을 한 번에 올바르게 저장하는지 실제 MariaDB로 확인한다.
@@ -123,6 +126,39 @@ class CheckResultProcessorTest(
         processor.process(fail(monitorId, t0))
 
         assertThat(checkResultCount(monitorId)).isZero()
+    }
+
+    @Test
+    fun `같은 모니터의 결과 두 개가 동시에 처리되어도 장애와 알림 예약은 한 번만 만든다`() {
+        // 경합은 우연에 달려 있으므로 모니터 5개로 여러 번 시도한다.
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            repeat(5) {
+                val (memberId, monitorId) = newMonitor()
+                val channel = insertChannel(memberId, enabled = true)
+                processor.process(fail(monitorId, t0))
+                processor.process(fail(monitorId, t0.plusSeconds(30)))
+
+                // 세 번째 실패 결과 두 개(예: 재검사와 정기 검사가 겹침)가 두 스레드에서 동시에 도착한다.
+                val start = CountDownLatch(1)
+                val futures = listOf(t0.plusSeconds(60), t0.plusSeconds(61)).map { at ->
+                    pool.submit {
+                        start.await(5, TimeUnit.SECONDS)
+                        processor.process(fail(monitorId, at))
+                    }
+                }
+                start.countDown()
+                futures.forEach { it.get(10, TimeUnit.SECONDS) }
+
+                assertThat(incidents(monitorId)).hasSize(1)
+                assertThat(deliveries(monitorId)).containsExactly(Delivery(channel, "DOWN", "PENDING"))
+                assertThat(checkResultCount(monitorId)).isEqualTo(4)
+                // 61초 결과가 먼저 반영되면 60초 결과는 "늦게 온 오래된 결과"라 원본만 저장되고 상태는 그대로다.
+                assertThat(state(memberId, monitorId).consecutiveFailures).isIn(3, 4)
+            }
+        } finally {
+            pool.shutdown()
+        }
     }
 
     private fun success(monitorId: Long, at: Instant) = CheckResult(monitorId, at, CheckResultType.SUCCESS, 200, 120)

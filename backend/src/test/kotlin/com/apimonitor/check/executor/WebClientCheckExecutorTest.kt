@@ -20,7 +20,10 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.github.tomakehurst.wiremock.http.Fault
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import org.springframework.transaction.CannotCreateTransactionException
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
@@ -212,10 +215,51 @@ class WebClientCheckExecutorTest {
         headers = headers,
     )
 
-    private fun executorWith(resolver: SafeAddressResolver, registry: MeterRegistry = SimpleMeterRegistry()) = WebClientCheckExecutor(
+    @Test
+    fun `결과 저장이 DB 오류로 두 번 실패해도 세 번째에 저장하고 실패로 세지 않는다`() {
+        server.stubFor(get("/health").willReturn(aResponse().withStatus(200)))
+        val processor = mockk<CheckResultProcessor>()
+        every { processor.process(any()) } throws
+            CannotCreateTransactionException("db down") andThenThrows
+            CannotCreateTransactionException("db down") andThen Unit
+        val registry = SimpleMeterRegistry()
+
+        executorWith(SafeAddressResolver(fakeDns) { false }, registry, processor).execute(command("/health"))
+
+        verify(timeout = 5_000, exactly = 3) { processor.process(match { it.type == CheckResultType.SUCCESS }) }
+        assertThat(saveFailures(registry)).isZero()
+    }
+
+    @Test
+    fun `결과 저장이 세 번 모두 실패하면 그 결과는 버리고 실패 메트릭을 올린다`() {
+        server.stubFor(get("/health").willReturn(aResponse().withStatus(200)))
+        val processor = mockk<CheckResultProcessor>()
+        every { processor.process(any()) } throws CannotCreateTransactionException("db down")
+        val registry = SimpleMeterRegistry()
+        val executor = executorWith(SafeAddressResolver(fakeDns) { false }, registry, processor)
+
+        executor.execute(command("/health"))
+
+        verify(timeout = 5_000, exactly = 3) { processor.process(any()) }
+        // 세 번째 실패 직후에 메트릭이 오르므로 잠시 기다린다.
+        val deadline = System.currentTimeMillis() + 5_000
+        while (saveFailures(registry) < 1.0 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertThat(saveFailures(registry)).isEqualTo(1.0)
+        // 실행 자리는 저장과 상관없이 돌려준다. 저장 실패가 쌓여도 검사가 멈추지 않는다.
+        assertThat(executor.availableSlots()).isEqualTo(CheckProperties().maxConcurrency)
+    }
+
+    private fun saveFailures(registry: MeterRegistry): Double =
+        registry.get("apimonitor.check.result_save_failures").counter().count()
+
+    private fun executorWith(
+        resolver: SafeAddressResolver,
+        registry: MeterRegistry = SimpleMeterRegistry(),
+        processor: CheckResultProcessor = mockk(relaxed = true),
+    ) = WebClientCheckExecutor(
         safeAddressResolver = resolver,
         urlSafetyValidator = UrlSafetyValidator(fakeDns),
-        resultProcessor = mockk<CheckResultProcessor>(relaxed = true),
+        resultProcessor = processor,
         properties = CheckProperties(),
         clock = Clock.systemUTC(),
         meterRegistry = registry,

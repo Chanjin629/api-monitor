@@ -454,14 +454,17 @@ Kafka를 도입하면 위 구조의 `CheckExecutor` 구현체를 교체하고, O
 
 ## 7. 운영 예외 처리
 
-| 상황 | 처리 | 이유 |
-| --- | --- | --- |
-| 고객 API Timeout | `TIMEOUT` 결과로 기록 | 정상적인 실패 경로다 |
-| DNS 조회 실패 | `DNS_ERROR`로 기록 | 도메인 설정 오류도 고객의 장애다 |
-| 금지 대역 응답 | `BLOCKED`로 분리 | 고객 장애가 아닌 보안 이벤트다 |
-| DB 일시 장애 | 디스패처는 로그를 남기고 다음 주기에 재시도. 결과 저장은 짧게 3회 재시도 후 포기하고 메트릭 증가 | 우리 장애를 고객 장애로 기록하면 안 된다 |
-| 동시 실행 한도 초과 | 빈자리를 기다린다. 대기 시간은 디스패치 지연 메트릭으로 관측 | 한도를 넘겨 실행하면 서버가 먼저 죽는다 |
-| 중복 실행 | `SKIP LOCKED`, 진행 중 장애 유니크 제약, 알림 유니크 제약 | 3중으로 막는다 |
-| 서버 재시작 | 실행 중이던 회차는 버림. 알림 예약은 DB에 남아 이어서 처리 | "실행 중" 상태를 두지 않아 복구 로직이 필요 없다 |
-| 파티션 작업 실패 | 메트릭과 로그로 알리고 다음 날 재시도. 미래 파티션을 3일치 미리 생성 | 하루 실패해도 저장이 멈추지 않는다 |
+| 상황 | 처리 | 이유 | 검증 테스트 |
+| --- | --- | --- | --- |
+| 고객 API Timeout | `TIMEOUT` 결과로 기록 | 정상적인 실패 경로다 | `WebClientCheckExecutorTest`, `CheckFlowScenarioTest`(Timeout으로 장애) |
+| DNS 조회 실패 | `DNS_ERROR`로 기록 | 도메인 설정 오류도 고객의 장애다 | `WebClientCheckExecutorTest` |
+| 금지 대역 응답 | `BLOCKED`로 분리 | 고객 장애가 아닌 보안 이벤트다 | `WebClientCheckExecutorTest`, `CheckResultProcessorTest`, `MonitorStateTest` |
+| DB 일시 장애 | 디스패처는 로그를 남기고 다음 주기에 재시도. 결과 저장은 짧게 3회 재시도 후 포기하고 메트릭 증가 | 우리 장애를 고객 장애로 기록하면 안 된다 | `CheckDispatcherTest`(선점 실패 후 다음 주기 정상), `WebClientCheckExecutorTest`(3번째에 저장, 3번 실패 시 버림) |
+| 동시 실행 한도 초과 | 빈자리를 기다린다. 대기 시간은 디스패치 지연 메트릭으로 관측 | 한도를 넘겨 실행하면 서버가 먼저 죽는다 | `CheckDispatcherTest`(빈자리 없으면 선점 안 함, 지연 기록) |
+| 중복 실행 | `SKIP LOCKED`, 진행 중 장애 유니크 제약, 알림 유니크 제약 | 3중으로 막는다 | `CheckDispatcherTest`(잠긴 모니터 건너뜀), `CheckResultProcessorTest`(같은 결과 두 번, 동시 결과 두 개), `NotificationSenderTest` |
+| 서버 재시작 | 실행 중이던 회차는 버림. 알림 예약은 DB에 남아 이어서 처리 | "실행 중" 상태를 두지 않아 복구 로직이 필요 없다 | `CheckDispatcherTest`(다음 검사 시각에 다시 선점), `NotificationSenderTest`(발송 중 멈춘 예약 재시도) |
+| 헤더 복호화 실패 | 그 모니터만 건너뛰고 나머지는 검사 | 암호화 키 교체 실수가 전체 검사를 멈추면 안 된다 | `CheckDispatcherTest` |
+| 파티션 작업 실패 | 메트릭과 로그로 알리고 다음 날 재시도. 미래 파티션을 3일치 미리 생성 | 하루 실패해도 저장이 멈추지 않는다 | `PartitionManagerTest`(3일치 생성, 다시 실행해도 같음) |
+
+전체 흐름(등록 → 실패 3회 → 장애 알림 → 성공 2회 → 복구 알림)은 `CheckFlowScenarioTest`가 디스패처, 실제 HTTP 검사, 결과 처리, 알림 발송기를 모두 연결해 확인한다 (19단계).
 

@@ -14,7 +14,7 @@
 | Frontend | React, TypeScript, Vite |
 | DB / Cache | MariaDB 11.8, Redis 8.12 (요청 제한) |
 | 인증 | GitHub OAuth, JWT (Access 15분), Refresh Token 교체·재사용 감지 |
-| 테스트 | JUnit 5, MockK, Testcontainers, Vitest, k6 (부하 테스트) |
+| 테스트 | JUnit 5, MockK, Testcontainers, WireMock, JaCoCo (커버리지), Vitest, k6 (부하 테스트) |
 | 배포 | Docker Compose, GitHub Actions, Caddy |
 
 ## 설계 문서
@@ -89,7 +89,12 @@ docker compose -f infra/docker-compose.dev.yml --profile observability up -d
 
 ```bash
 cd backend && ./gradlew test
+cd backend && ./gradlew test jacocoTestReport   # 커버리지 리포트: build/reports/jacoco/test/html/index.html
 cd frontend && npm test
 ```
 
-Backend 통합 테스트는 Testcontainers로 MariaDB 컨테이너를 띄우므로 Docker가 실행 중이어야 합니다.
+Backend 통합 테스트는 Testcontainers로 MariaDB와 Redis 컨테이너를 띄우므로 Docker가 실행 중이어야 합니다.
+
+- Backend 242개, Frontend 28개 (2026-11-26). Backend 라인 커버리지 96.0%, 분기 커버리지 85.1%.
+- 장애 시나리오 테스트(`CheckFlowScenarioTest`)는 가짜 고객 API(WireMock)를 상대로 실제 디스패처·검사·결과 처리·알림 발송을 연결해, 실패 3회 → 장애 알림 → 성공 2회 → 복구 알림을 확인합니다.
+- DB 일시 장애, 서버 재시작, 동시 처리 같은 운영 예외와 그것을 확인하는 테스트는 [아키텍처 7장](docs/02-architecture.md)에 정리했습니다.
